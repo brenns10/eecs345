@@ -51,3 +51,23 @@
      ((snull? state) (error "Variable binding not found"))
      ((eq? var (firstvar state)) (firstval state))
      (else (state_lookup (scdr state) var)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Overall interpreter functions
+;;
+;; These implement the actual high-level interpreter action.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Interpret from the given filename, and return its value.
+(define interpret
+  (lambda (filename)
+    (interpret_parsetree (parser filename) state_new)))
+
+;; Given a parsed tree, interpret with the given state until the whole tree has
+;; been interpreted.
+(define interpret_parsetree
+  (lambda (tree state)
+    (if (null? (cdr tree))
+        (Mvalue (car tree) state)
+        (interpret_parsetree (cdr tree) (Mstate (car tree) state)))))
