@@ -54,6 +54,62 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mvalue functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; These functions take an expression form (infix, prefix, or postfix) and
+;; return the function that will give the respective parts of the expression.
+(define operator
+  (lambda (form)
+    (car form)))
+(define leftoperand
+  (lambda (form)
+    (cadr form)))
+(define rightoperand
+  (lambda (form)
+    (caddr form)))
+
+;; These functions define the expression forms.
+(define infix (list cadr car caddr))
+(define prefix (list car cadr caddr))
+(define postfix (list caddr car cadr))
+
+;; This function takes an operator atom and returns the Scheme function that
+;; corresponds to it.
+(define opfunc
+  (lambda (op)
+    (cond
+      ((eq? op '+) +)
+      ((eq? op '-) -)
+      ((eq? op '/) quotient)
+      ((eq? op '*) *)
+      ((eq? op '%) remainder)
+      (else (error "Unrecognized operator.")))))
+
+;; Basic overall Mvalue function from class.  Takes the expression, state, and
+;; expression form, and returns the value of the expression.
+(define Mvalue
+  (lambda (expression state form)
+    ((lambda (operator leftoperand rightoperand)
+      (if (number? expression)
+          expression
+          ((opfunc (operator expression))
+           (Mvalue (leftoperand expression) state form)
+           (Mvalue (rightoperand expression) state form))))
+     (operator form) (leftoperand form) (rightoperand form))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mstate functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define Mstate
+  (lambda (expression state)
+    (cond
+     (else state))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Overall interpreter functions
 ;;
 ;; These implement the actual high-level interpreter action.
@@ -69,5 +125,5 @@
 (define interpret_parsetree
   (lambda (tree state)
     (if (null? (cdr tree))
-        (Mvalue (car tree) state)
+        (Mvalue (car tree) state prefix)
         (interpret_parsetree (cdr tree) (Mstate (car tree) state)))))
