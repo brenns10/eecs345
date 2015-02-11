@@ -14,9 +14,9 @@ Goals:
 * Implement Mvalue.
     * For numerical expressions. **DONE**
     * For boolean expressions: add boolean operators and add boolean
-      literals. (Joe)
+      literals. (Joe) **DONE**
     * For return statements. **DONE**
-    * For assignment statements. (Joe)
+    * For assignment statements. (Joe) **DONE**
     * For if statement (should return value of executed statement body). (Joe)
 * Implement Mstate.
     * For expressions. **DONE (except side effects extra credit)**

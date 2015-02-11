@@ -124,9 +124,12 @@
 ;; Change to cond for that.
 (define Mvalue_statement
   (lambda (expression state form)
-    (if (eq? (car expression) 'return)
-        (Mvalue (cadr expression) state form)
-        #f)))
+    (cond
+      ((eq? (car expression) 'return)
+        (Mvalue (cadr expression) state form))
+      ; Mvalue for assign stmts
+      ((eq? (car expression) '=) (Mvalue (caddr expression) state form))
+      (else #f))))
 
 ;; Returns the value of a parse tree fragment which is a list (could be either
 ;; an expression or statement).
