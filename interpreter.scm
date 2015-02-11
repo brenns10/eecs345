@@ -103,8 +103,9 @@
         (Mvalue (rightoperand expression) state form)))
      (operator form) (leftoperand form) (rightoperand form))))
 
-;; Returns the value of a statement (which is only defined for a "return"
-;; statement, everything else returns false).
+;; Returns the value of a statement.  This is only currently implemented for
+;; return statements.  It will need to be implemented for assignment and if.
+;; Change to cond for that.
 (define Mvalue_statement
   (lambda (expression state form)
     (if (eq? (car expression) 'return)
