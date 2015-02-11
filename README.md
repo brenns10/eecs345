@@ -7,7 +7,7 @@ So, for the first assignment, we will tag it `part1`, etc.
 Contributors:
 * Stephen Brennan (smb196)
 * Joe Fennimore (jrf118)
-* Kaan (I don't know your last name or Case ID, sorry!)
+* Kaan Atesoglu (aka43)
 
 Goals:
 * Pick a state data structure and create functions to work with it.  **DONE**
