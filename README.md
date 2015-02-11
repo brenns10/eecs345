@@ -21,6 +21,8 @@ Goals:
 * Implement Mstate.
     * For expressions. **DONE (except side effects extra credit)**
     * For assignment. **DONE**
+    * For variable declaration--as seen in test #4, needs to accept an
+      expression as initialization. (Kaan)
     * For if statement. (Kaan)
 * Implement `(interpret)`.  **DONE**
 * Implement side effects (EC).
