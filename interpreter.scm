@@ -5,7 +5,8 @@
   (lambda (x)
     (not (or (pair? x) (null? x)))))
 
-;; There appears not to be a native != function, so we're going to create one, specifically for numbers
+;; There appears not to be a native != function, so we're going to create one,
+;; specifically for numbers
 (define !=
   (lambda (x y)
     (not (= x y))))
@@ -97,9 +98,10 @@
       ((eq? op '/) quotient)
       ((eq? op '*) *)
       ((eq? op '%) remainder)
-      
+
       ; Boolean functions
-      ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function name- it's a keyword
+      ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function
+                                              ; name- it's a keyword
       ((eq? op '||) (lambda (x y) (or x y)))
       ((eq? op '<) <)
       ((eq? op '>) >)
@@ -107,7 +109,7 @@
       ((eq? op '>=) >=)
       ((eq? op '==) =)
       ((eq? op '!=) !=)
-      
+
       (else (error "Unrecognized operator.")))))
 
 ;; Returns the value of an arithmetic expression.
@@ -160,10 +162,10 @@
 ;; Mboolean functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Returns #t or #f based on the boolean evaluation of the expression
-;; Right now, Mvalue already performs the function that we want for Mboolean,
-;; and so for the sake of abstraction we're keeping a separate Mboolean function,
-;; but for the sake of non-redundant code, we're not repeating the code in Mvalue.
+;; Returns #t or #f based on the boolean evaluation of the expression Right now,
+;; Mvalue already performs the function that we want for Mboolean, and so for
+;; the sake of abstraction we're keeping a separate Mboolean function, but for
+;; the sake of non-redundant code, we're not repeating the code in Mvalue.
 (define Mboolean
   (lambda (expression state form)
     (Mvalue expression state form)))
