@@ -146,9 +146,11 @@
 (define Mvalue_atom
   (lambda (expression state form)
     (cond
-      ((or (boolean? expression)(number? expression)) expression)
+      ((or (boolean? expression) (number? expression)) expression)
       ((eq? expression 'true) #t)
       ((eq? expression 'false) #f)
+      ((eq? 'undefined (state_lookup state expression))
+       (error "Use of undefined variable."))
       (else (state_lookup state expression)))))
 
 ;; Return the value of any parse tree fragment!
@@ -179,7 +181,7 @@
   (lambda (expression state form)
     (cond
      ((eq? 'var (car expression))
-      (state_add state (cadr expression) 0))
+      (state_add state (cadr expression) 'undefined))
      ((eq? '= (car expression))
       (state_add (state_remove state (cadr expression))
                  (cadr expression) (Mvalue (caddr expression) state form)))
