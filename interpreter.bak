@@ -5,11 +5,6 @@
   (lambda (x)
     (not (or (pair? x) (null? x)))))
 
-;; There appears not to be a native != function, so we're going to create one, specifically for numbers
-(define !=
-  (lambda (x y)
-    (not (= x y))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interacting with the state.
 ;;
@@ -97,17 +92,6 @@
       ((eq? op '/) quotient)
       ((eq? op '*) *)
       ((eq? op '%) remainder)
-      
-      ; Boolean functions
-      ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function name- it's a keyword
-      ((eq? op '||) (lambda (x y) (or x y)))
-      ((eq? op '<) <)
-      ((eq? op '>) >)
-      ((eq? op '<=) <=)
-      ((eq? op '>=) >=)
-      ((eq? op '==) =)
-      ((eq? op '!=) !=)
-      
       (else (error "Unrecognized operator.")))))
 
 ;; Returns the value of an arithmetic expression.
@@ -143,11 +127,9 @@
 ;; either a variable or literal).
 (define Mvalue_atom
   (lambda (expression state form)
-    (cond
-      ((or (boolean? expression)(number? expression)) expression)
-      ((eq? expression 'true) #t)
-      ((eq? expression 'false) #f)
-      (else (state_lookup state expression)))))
+    (if (number? expression)
+        expression
+        (state_lookup state expression))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -155,18 +137,6 @@
     (cond
      ((atom? expression) (Mvalue_atom expression state form))
      (else (Mvalue_list expression state form)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Mboolean functions
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;; Returns #t or #f based on the boolean evaluation of the expression
-;; Right now, Mvalue already performs the function that we want for Mboolean,
-;; and so for the sake of abstraction we're keeping a separate Mboolean function,
-;; but for the sake of non-redundant code, we're not repeating the code in Mvalue.
-(define Mboolean
-  (lambda (expression state form)
-    (Mvalue expression state form)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mstate functions
