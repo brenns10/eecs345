@@ -1,5 +1,10 @@
 (load "simpleParser.scm")
 
+;; Returns true if the argument is an atom.
+(define atom?
+  (lambda (x)
+    (not (or (pair? x) (null? x)))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interacting with the state.
 ;;
@@ -74,6 +79,9 @@
 (define prefix (list car cadr caddr))
 (define postfix (list caddr car cadr))
 
+;; This list defines what "operators" are statements.
+(define statement '(var = if return))
+
 ;; This function takes an operator atom and returns the Scheme function that
 ;; corresponds to it.
 (define opfunc
@@ -86,27 +94,79 @@
       ((eq? op '%) remainder)
       (else (error "Unrecognized operator.")))))
 
-;; Basic overall Mvalue function from class.  Takes the expression, state, and
-;; expression form, and returns the value of the expression.
-(define Mvalue
+;; Returns the value of an arithmetic expression.
+(define Mvalue_expression
   (lambda (expression state form)
     ((lambda (operator leftoperand rightoperand)
-      (if (number? expression)
-          expression
-          ((opfunc (operator expression))
-           (Mvalue (leftoperand expression) state form)
-           (Mvalue (rightoperand expression) state form))))
+       ((opfunc (operator expression))
+        (Mvalue (leftoperand expression) state form)
+        (Mvalue (rightoperand expression) state form)))
      (operator form) (leftoperand form) (rightoperand form))))
 
+;; Returns the value of a statement (which is only defined for a "return"
+;; statement, everything else returns false).
+(define Mvalue_statement
+  (lambda (expression state form)
+    (if (eq? (car expression) 'return)
+        (Mvalue (cadr expression) state form)
+        #f)))
+
+;; Returns the value of a parse tree fragment which is a list (could be either
+;; an expression or statement).
+(define Mvalue_list
+  (lambda (expression state form)
+    ((lambda (operator)
+       (cond
+        ((member (operator expression) statement)
+         (Mvalue_statement expression state form))
+        (else (Mvalue_expression expression state form))))
+     (operator form))))
+
+;; Returns the value of a parse tree fragment which is just an atom (could be
+;; either a variable or literal).
+(define Mvalue_atom
+  (lambda (expression state form)
+    (if (number? expression)
+        expression
+        (state_lookup state expression))))
+
+;; Return the value of any parse tree fragment!
+(define Mvalue
+  (lambda (expression state form)
+    (cond
+     ((atom? expression) (Mvalue_atom expression state form))
+     (else (Mvalue_list expression state form)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mstate functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define Mstate
-  (lambda (expression state)
+;; Return the state after executing a statement.
+(define Mstate_statement
+  (lambda (expression state form)
     (cond
+     ((eq? 'var (car expression))
+      (state_add state (cadr expression) 0))
+     ((eq? '= (car expression))
+      (state_add (state_remove state (cadr expression))
+                 (cadr expression) (Mvalue (caddr expression) state form)))
+     ;; TODO: Implement if statements.
      (else state))))
+
+;; Return the state after executing a parse tree fragment which is a list (could
+;; be either an expression or statement).
+(define Mstate_list
+  (lambda (expression state form)
+    (if (member (car expression) statement)
+        (Mstate_statement expression state form)
+        state)))
+
+;; Return the state after executing any parse tree fragment.
+(define Mstate
+  (lambda (expression state form)
+    (if (list? expression)
+        (Mstate_list expression state form)
+        state)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -126,4 +186,4 @@
   (lambda (tree state)
     (if (null? (cdr tree))
         (Mvalue (car tree) state prefix)
-        (interpret_parsetree (cdr tree) (Mstate (car tree) state)))))
+        (interpret_parsetree (cdr tree) (Mstate (car tree) state prefix)))))
