@@ -5,7 +5,8 @@
   (lambda (x)
     (not (or (pair? x) (null? x)))))
 
-;; There appears not to be a native != function, so we're going to create one, specifically for numbers
+;; There appears not to be a native != function, so we're going to create one,
+;; specifically for numbers
 (define !=
   (lambda (x y)
     (not (= x y))))
@@ -97,9 +98,10 @@
       ((eq? op '/) quotient)
       ((eq? op '*) *)
       ((eq? op '%) remainder)
-      
+
       ; Boolean functions
-      ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function name- it's a keyword
+      ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function
+                                              ; name- it's a keyword
       ((eq? op '||) (lambda (x y) (or x y)))
       ((eq? op '<) <)
       ((eq? op '>) >)
@@ -107,7 +109,7 @@
       ((eq? op '>=) >=)
       ((eq? op '==) =)
       ((eq? op '!=) !=)
-      
+
       (else (error "Unrecognized operator.")))))
 
 ;; Returns the value of an arithmetic expression.
@@ -147,9 +149,11 @@
 (define Mvalue_atom
   (lambda (expression state form)
     (cond
-      ((or (boolean? expression)(number? expression)) expression)
+      ((or (boolean? expression) (number? expression)) expression)
       ((eq? expression 'true) #t)
       ((eq? expression 'false) #f)
+      ((eq? 'undefined (state_lookup state expression))
+       (error "Use of undefined variable."))
       (else (state_lookup state expression)))))
 
 ;; Return the value of any parse tree fragment!
@@ -163,10 +167,10 @@
 ;; Mboolean functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Returns #t or #f based on the boolean evaluation of the expression
-;; Right now, Mvalue already performs the function that we want for Mboolean,
-;; and so for the sake of abstraction we're keeping a separate Mboolean function,
-;; but for the sake of non-redundant code, we're not repeating the code in Mvalue.
+;; Returns #t or #f based on the boolean evaluation of the expression Right now,
+;; Mvalue already performs the function that we want for Mboolean, and so for
+;; the sake of abstraction we're keeping a separate Mboolean function, but for
+;; the sake of non-redundant code, we're not repeating the code in Mvalue.
 (define Mboolean
   (lambda (expression state form)
     (Mvalue expression state form)))
@@ -180,7 +184,7 @@
   (lambda (expression state form)
     (cond
      ((eq? 'var (car expression))
-      (state_add state (cadr expression) 0))
+      (state_add state (cadr expression) 'undefined))
      ((eq? '= (car expression))
       (state_add (state_remove state (cadr expression))
                  (cadr expression) (Mvalue (caddr expression) state form)))
