@@ -13,12 +13,14 @@ Goals:
 * Pick a state data structure and create functions to work with it.  **DONE**
 * Implement Mvalue.
     * For numerical expressions. **DONE**
-    * For binary expressions.
-    * For return statements.
-    * For any other control flow statements (should have no value).
+    * For boolean expressions: add boolean operators and add boolean
+      literals. (Joe)
+    * For return statements. **DONE**
+    * For assignment statements. (Joe)
+    * For if statement (should return value of executed statement body). (Joe)
 * Implement Mstate.
-    * For expressions.
-    * For assignment.
-    * For control flow.
-    * etc.
+    * For expressions. **DONE (except side effects extra credit)**
+    * For assignment. **DONE**
+    * For if statement. (Kaan)
 * Implement `(interpret)`.  **DONE**
+* Implement side effects (EC).
