@@ -98,7 +98,7 @@
 
 ;; This function takes an operator atom and returns the Scheme function that
 ;; corresponds to it.
-(define opfunc
+(define opfunc-binary
   (lambda (op)
     (cond
       ((eq? op '+) +)
@@ -118,15 +118,25 @@
       ((eq? op '==) =)
       ((eq? op '!=) !=)
 
-      (else (error "Unrecognized operator.")))))
+      (else (error "Unrecognized binary operator.")))))
+
+(define opfunc-unary
+  (lambda (op)
+    (cond
+      ((eq? op '!) not)
+      ((eq? op '-) (lambda (x) (- 0 x)))
+      (else (error "Unrecognized unary operator.")))))
 
 ;; Returns the value of an arithmetic expression.
 (define Mvalue_expression
   (lambda (expression state form)
     ((lambda (operator leftoperand rightoperand)
-       ((opfunc (operator expression))
-        (Mvalue (leftoperand expression) state form)
-        (Mvalue (rightoperand expression) state form)))
+       (if (= 3 (length expression))
+           ((opfunc-binary (operator expression))
+            (Mvalue (leftoperand expression) state form)
+            (Mvalue (rightoperand expression) state form))
+           ((opfunc-unary (operator expression))
+            (Mvalue (leftoperand expression) state form))))
      (operator form) (leftoperand form) (rightoperand form))))
 
 ;; Returns the value of a statement.  This is only currently implemented for
