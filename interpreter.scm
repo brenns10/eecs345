@@ -214,14 +214,17 @@
 ;; Return the state after executing a declaration.
 (define Mstate_declare
   (lambda (expression state form)
-    (if (= 3 (length expression))
-        ;; This is declaration AND assignment-
-        (state_add (state_remove (Mstate (caddr expression) state form)
-                                 (cadr expression))
-                   (cadr expression)
-                   (Mvalue (caddr expression) state form))
+    (cond
+     ((state_member state (cadr expression))
+      (error "Redeclaring variable."))
+     ((= 3 (length expression))
+      ;; This is declaration AND assignment-
+      (state_add (state_remove (Mstate (caddr expression) state form)
+                               (cadr expression))
+                 (cadr expression)
+                 (Mvalue (caddr expression) state form)))
         ;; This is just declaration.
-        (state_add state (cadr expression) 'undefined))))
+     (else (state_add state (cadr expression) 'undefined)))))
 
 ;; Return the state after executing a statement.
 (define Mstate_statement
@@ -229,8 +232,10 @@
     (cond
      ((eq? 'var (car expression)) (Mstate_declare expression state form))
      ((eq? '= (car expression))
-      (state_add (state_remove state (cadr expression))
-                 (cadr expression) (Mvalue (caddr expression) state form)))
+      (if (state_member state (cadr expression))
+          (state_add (state_remove state (cadr expression))
+                     (cadr expression) (Mvalue (caddr expression) state form))
+          (error "Using variable before declared.")))
      ((eq? 'return (car expression))
       (state_add (state_remove state "*return value*")
                  "*return value*" (Mvalue (cadr expression) state form)))
