@@ -21,6 +21,12 @@
   (lambda (x y)
     (not (= x y))))
 
+;; Perform a left fold.  Takes a function which takes two arguments, an initial
+;; value to supply to the function, and a list of arguments.  Applies the
+;; function to the initial value (as the first argument) and the first element
+;; of the list (as the second argument).  The return value is then used as the
+;; initial value for the next element of the list.  EG:
+;; (fold-left + 0 '(1 2 3 4)) => 10
 (define fold-left
   (lambda (function initial list)
     (if (null? list)
