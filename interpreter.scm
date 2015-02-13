@@ -11,11 +11,11 @@
   (lambda (x y)
     (not (= x y))))
 
-(define foldl
+(define fold-left
   (lambda (function initial list)
     (if (null? list)
         initial
-        (foldl function (function initial (car list)) (cdr list)))))
+        (fold-left function (function initial (car list)) (cdr list)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interacting with the state.
@@ -253,8 +253,8 @@
 ;; on each of the parts of the expression in order to get the state from them.
 (define Mstate_expression
   (lambda (expression state form)
-    (foldl (lambda (state exp) (Mstate exp state form))
-           state (cdr expression))))
+    (fold-left (lambda (state exp) (Mstate exp state form))
+               state (cdr expression))))
 
 ;; Return the state after executing a parse tree fragment which is a list (could
 ;; be either an expression or statement).
