@@ -1,4 +1,14 @@
+;; EECS 345 Project Part 1
+;; Stephen Brennan (smb196)
+;; Joe Fennimore (jrf118)
+;; Kaan Atesoglu (aka43)
+
 (load "simpleParser.scm")
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Utility Functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Returns true if the argument is an atom.
 (define atom?
@@ -16,6 +26,7 @@
     (if (null? list)
         initial
         (fold-left function (function initial (car list)) (cdr list)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Interacting with the state.
@@ -186,6 +197,7 @@
      ((atom? expression) (Mvalue_atom expression state form))
      (else (Mvalue_list expression state form)))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mboolean functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -197,6 +209,7 @@
 (define Mboolean
   (lambda (expression state form)
     (Mvalue expression state form)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mstate functions
@@ -246,7 +259,7 @@
           (error "Using variable before declared.")))
      ((eq? 'return (car expression))
       (state_add (state_remove state "*return value*")
-                 "*return value*" 
+                 "*return value*"
                  (return_val (Mvalue (cadr expression) state form))))
      ((eq? 'if (car expression)) (Mstate_if expression state form)))))
 
