@@ -60,8 +60,16 @@
   (lambda (state var)
     (cond
      ((snull? state) (error "Variable binding not found"))
-     ((eq? var (firstvar state)) (firstval state))
+     ((equal? var (firstvar state)) (firstval state))
      (else (state_lookup (scdr state) var)))))
+
+;; Return whether the variable is in the state.
+(define state_member
+  (lambda (state var)
+    (cond
+     ((snull? state) #f)
+     ((equal? var (firstvar state)) #t)
+     (else (state_member (scdr state) var)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -127,8 +135,6 @@
 (define Mvalue_statement
   (lambda (expression state form)
     (cond
-      ((eq? (car expression) 'return)
-        (Mvalue (cadr expression) state form))
       ; Mvalue for assign stmts
       ((eq? (car expression) '=) (Mvalue (caddr expression) state form))
       (else #f))))
@@ -179,17 +185,10 @@
 ;; Mstate functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Return the state after executing a statement.
-(define Mstate_statement
+;; Return the state after executing an if statement.
+(define Mstate_if
   (lambda (expression state form)
-    (cond
-     ((eq? 'var (car expression))
-      (state_add state (cadr expression) 'undefined))
-     ((eq? '= (car expression))
-      (state_add (state_remove state (cadr expression))
-                 (cadr expression) (Mvalue (caddr expression) state form)))
-     ((eq? 'if (car expression))
-      (if (= 3 (length expression))
+    (if (= 3 (length expression))
           ; IF statement
           (if (Mboolean (list-ref expression 1) state form)
               (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
@@ -200,7 +199,32 @@
               (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
                                                       state form) form)
               (Mstate (list-ref expression 3) (Mstate (list-ref expression 1)
-                                                      state form) form)))))))
+                                                      state form) form)))))
+
+;; Return the state after executing a declaration.
+(define Mstate_declare
+  (lambda (expression state form)
+    (if (= 3 (length expression))
+        ;; This is declaration AND assignment-
+        (state_add (state_remove (Mstate (caddr expression) state form)
+                                 (cadr expression))
+                   (cadr expression)
+                   (Mvalue (caddr expression) state form))
+        ;; This is just declaration.
+        (state_add state (cadr expression) 'undefined))))
+
+;; Return the state after executing a statement.
+(define Mstate_statement
+  (lambda (expression state form)
+    (cond
+     ((eq? 'var (car expression)) (Mstate_declare expression state form))
+     ((eq? '= (car expression))
+      (state_add (state_remove state (cadr expression))
+                 (cadr expression) (Mvalue (caddr expression) state form)))
+     ((eq? 'return (car expression))
+      (state_add (state_remove state "*return value*")
+                 "*return value*" (Mvalue (cadr expression) state form)))
+     ((eq? 'if (car expression)) (Mstate_if expression state form)))))
 
 ;; Return the state after executing a parse tree fragment which is a list (could
 ;; be either an expression or statement).
@@ -233,6 +257,8 @@
 ;; been interpreted.
 (define interpret_parsetree
   (lambda (tree state)
-    (if (null? (cdr tree))
-        (Mvalue (car tree) state prefix)
+    (if (null? tree)
+        (if (state_member state "*return value*")
+            (state_lookup state "*return value*")
+            'no_return_value)
         (interpret_parsetree (cdr tree) (Mstate (car tree) state prefix)))))
