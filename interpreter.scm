@@ -189,16 +189,18 @@
       (state_add (state_remove state (cadr expression))
                  (cadr expression) (Mvalue (caddr expression) state form)))
      ((eq? 'if (car expression))
-      (if (null? (list-ref expression 4)) 
+      (if (= 3 (length expression))
           ; IF statement
-          (if (Mboolean (list-ref expression 2) state form) 
-              (Mstate (list-ref expression 3) (Mstate (list-ref expression 2) state form) form) 
-              (Mstate (list-ref expression 2) state form)) 
+          (if (Mboolean (list-ref expression 1) state form)
+              (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
+                                                      state form) form)
+              (Mstate (list-ref expression 1) state form))
           ; ELSE IF
-          (if (Mboolean (list-ref expression 2) state form) 
-              (Mstate (list-ref expression 3) (Mstate (list-ref expression 2) state form) form) 
-              (Mstate (list-ref expression 4) (Mstate (list-ref expression 2) state form) form)) 
-          (else state))))))
+          (if (Mboolean (list-ref expression 1) state form)
+              (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
+                                                      state form) form)
+              (Mstate (list-ref expression 3) (Mstate (list-ref expression 1)
+                                                      state form) form)))))))
 
 ;; Return the state after executing a parse tree fragment which is a list (could
 ;; be either an expression or statement).
