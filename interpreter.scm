@@ -188,7 +188,10 @@
      ((eq? '= (car expression))
       (state_add (state_remove state (cadr expression))
                  (cadr expression) (Mvalue (caddr expression) state form)))
-     ;; TODO: Implement if statements.
+     ((eq? 'if (car expression))
+      (if (null? (cddr expression)) 
+          ( ) ; just IF statement
+          ( )) ; IF ELSE statement
      (else state))))
 
 ;; Return the state after executing a parse tree fragment which is a list (could
