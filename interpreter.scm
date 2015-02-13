@@ -246,8 +246,18 @@
           (error "Using variable before declared.")))
      ((eq? 'return (car expression))
       (state_add (state_remove state "*return value*")
-                 "*return value*" (Mvalue (cadr expression) state form)))
+                 "*return value*" 
+                 (return_val (Mvalue (cadr expression) state form))))
      ((eq? 'if (car expression)) (Mstate_if expression state form)))))
+
+;; Helper method to handle the fact that return statements should return
+;; the atoms 'true or 'false rather than #t and #f
+(define return_val
+  (lambda (expression)
+    (cond
+      ((eq? expression #t) 'true)
+      ((eq? expression #f) 'false)
+      (else expression))))
 
 ;; Since expressions may have assignments within them, you need to call Mstate
 ;; on each of the parts of the expression in order to get the state from them.
