@@ -41,8 +41,9 @@
 ;; Dr. Connamacher said that would be easier for the future.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; A new, empty state.
-(define state_new '(() ()))
+;; Return a new, empty state.
+(define state-new
+  (lambda () '(() ()))
 
 ;; The first variable in the state.
 (define firstvar caar)
@@ -310,7 +311,7 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (interpret_parsetree (parser filename) state_new)))
+    (interpret_parsetree (parser filename) (state-new))))
 
 ;; Given a parsed tree, interpret with the given state until the whole tree has
 ;; been interpreted.
