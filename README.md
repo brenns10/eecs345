@@ -23,6 +23,6 @@ Goals:
     * For assignment. **DONE**
     * For variable declaration--as seen in test #4, needs to accept an
       expression as initialization. (Kaan)
-    * For if statement. (Kaan)
+    * For if statement. (Kaan) **DONE, NOT TESTED (except side effects)**
 * Implement `(interpret)`.  **DONE**
 * Implement side effects (EC).
