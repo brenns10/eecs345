@@ -191,14 +191,14 @@
      ((eq? 'if (car expression))
       (if (null? (list-ref expression 4)) 
           ; IF statement
-          (if (Mboolean (list-ref expression 2) state form) ; if bool
-              (Mstate (list-ref expression 3) state form) ; if true
-               state) ; if false
+          (if (Mboolean (list-ref expression 2) state form) 
+              (Mstate (list-ref expression 3) (Mstate (list-ref expression 2) state form) form) 
+              (Mstate (list-ref expression 2) state form)) 
           ; ELSE IF
-          (if (Mboolean (list-ref expression 2) state form) ; if bool
-              (Mstate (list-ref expression 3) state form) ; if true
-              (Mstate (list-ref expression 4) state form)) ; if false
-     (else state))))))
+          (if (Mboolean (list-ref expression 2) state form) 
+              (Mstate (list-ref expression 3) (Mstate (list-ref expression 2) state form) form) 
+              (Mstate (list-ref expression 4) (Mstate (list-ref expression 2) state form) form)) 
+          (else state))))))
 
 ;; Return the state after executing a parse tree fragment which is a list (could
 ;; be either an expression or statement).
