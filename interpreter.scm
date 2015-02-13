@@ -62,12 +62,12 @@
     (null? (car state))))
 
 ;; Add a (var value) binding to the state.
-(define state_add
+(define state-add
   (lambda (state var value)
     (list (cons var (car state)) (cons value (cadr state)))))
 
 ;; Remove the first binding for var from the state.
-(define state_remove
+(define state-remove
   (lambda (state var)
     (cond
      ;; If the state is empty, the binding is removed.
@@ -76,24 +76,24 @@
      ;; the state.
      ((eq? var (firstvar state)) (scdr state))
      ;; Otherwise, put the current variable and value onto the state with the
-     (else (state_add (state_remove (scdr state) var)
+     (else (state-add (state-remove (scdr state) var)
                       (firstvar state) (firstval state))))))
 
 ;; Lookup the binding for var in state.
-(define state_lookup
+(define state-lookup
   (lambda (state var)
     (cond
      ((snull? state) (error "Variable binding not found"))
      ((equal? var (firstvar state)) (firstval state))
-     (else (state_lookup (scdr state) var)))))
+     (else (state-lookup (scdr state) var)))))
 
 ;; Return whether the variable is in the state.
-(define state_member
+(define state-member
   (lambda (state var)
     (cond
      ((snull? state) #f)
      ((equal? var (firstvar state)) #t)
-     (else (state_member (scdr state) var)))))
+     (else (state-member (scdr state) var)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -193,9 +193,9 @@
       ((or (boolean? expression) (number? expression)) expression)
       ((eq? expression 'true) #t)
       ((eq? expression 'false) #f)
-      ((eq? 'undefined (state_lookup state expression))
+      ((eq? 'undefined (state-lookup state expression))
        (error "Use of undefined variable."))
-      (else (state_lookup state expression)))))
+      (else (state-lookup state expression)))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -242,16 +242,16 @@
 (define Mstate_declare
   (lambda (expression state form)
     (cond
-     ((state_member state (cadr expression))
+     ((state-member state (cadr expression))
       (error "Redeclaring variable."))
      ((= 3 (length expression))
       ;; This is declaration AND assignment-
-      (state_add (state_remove (Mstate (caddr expression) state form)
+      (state-add (state-remove (Mstate (caddr expression) state form)
                                (cadr expression))
                  (cadr expression)
                  (Mvalue (caddr expression) state form)))
         ;; This is just declaration.
-     (else (state_add state (cadr expression) 'undefined)))))
+     (else (state-add state (cadr expression) 'undefined)))))
 
 ;; Return the state after executing a statement.
 (define Mstate_statement
@@ -259,13 +259,13 @@
     (cond
      ((eq? 'var (car expression)) (Mstate_declare expression state form))
      ((eq? '= (car expression))
-      (if (state_member state (cadr expression))
-          (state_add (state_remove (Mstate (caddr expression) state form)
+      (if (state-member state (cadr expression))
+          (state-add (state-remove (Mstate (caddr expression) state form)
                                    (cadr expression))
                      (cadr expression) (Mvalue (caddr expression) state form))
           (error "Using variable before declared.")))
      ((eq? 'return (car expression))
-      (state_add (state_remove state "*return value*")
+      (state-add (state-remove state "*return value*")
                  "*return value*"
                  (return_val (Mvalue (cadr expression) state form))))
      ((eq? 'if (car expression)) (Mstate_if expression state form)))))
@@ -318,7 +318,7 @@
 (define interpret_parsetree
   (lambda (tree state)
     (if (null? tree)
-        (if (state_member state "*return value*")
-            (state_lookup state "*return value*")
+        (if (state-member state "*return value*")
+            (state-lookup state "*return value*")
             'no_return_value)
         (interpret_parsetree (cdr tree) (Mstate (car tree) state prefix)))))
