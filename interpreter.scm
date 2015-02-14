@@ -155,8 +155,7 @@
          (Mvalue (leftoperand expression) state)))))
 
 ;; Returns the value of a statement.  This is only currently implemented for
-;; return statements.  It will need to be implemented for assignment and if.
-;; Change to cond for that.
+;; assignment statements (because they're kinda expressions too).
 (define Mvalue_statement
   (lambda (expression state)
     (cond
