@@ -9,4 +9,20 @@ Contributors:
 * Joe Fennimore (jrf118)
 * Kaan Atesoglu (aka43)
 
-**PART 1 COMPLETE!**
+Goals:
+* Pick a state data structure and create functions to work with it.  **DONE**
+* Implement Mvalue.
+    * For numerical expressions. **DONE**
+    * For boolean expressions: add boolean operators and add boolean
+      literals. (Joe) **DONE**
+    * For return statements. **DONE**
+    * For assignment statements. (Joe) **DONE**
+    * For if statement (should return value of executed statement body). (Joe)
+* Implement Mstate.
+    * For expressions. **DONE (except side effects extra credit)**
+    * For assignment. **DONE**
+    * For variable declaration--as seen in test #4, needs to accept an
+      expression as initialization. (Kaan)
+    * For if statement. (Kaan) **DONE, NOT TESTED (except side effects)**
+* Implement `(interpret)`.  **DONE**
+* Implement side effects (EC).
