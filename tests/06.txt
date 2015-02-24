@@ -1,8 +1,12 @@
-var x = 5;
-var y = 6;
-var m;
-if (x <= y)
-  m = x;
-else
-  m = y;
-return m;
+var x = 1;
+var y = x + 1;
+if (x < y) {
+  var z = 10;
+
+  if (x < z) {
+    var swap = y;
+    y = x;
+    x = swap;
+  }
+}
+return x;

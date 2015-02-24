@@ -1,5 +1,9 @@
-var x = 5;
-var y = 6;
-if (x != y)
-  x = 10;
-return x;
+var x = 10;
+var y = 4;
+if (x < y) {
+  var min = x;
+}
+else {
+  var min = y;
+}
+return min;

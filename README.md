@@ -9,20 +9,17 @@ Contributors:
 * Joe Fennimore (jrf118)
 * Kaan Atesoglu (aka43)
 
-Goals:
-* Pick a state data structure and create functions to work with it.  **DONE**
-* Implement Mvalue.
-    * For numerical expressions. **DONE**
-    * For boolean expressions: add boolean operators and add boolean
-      literals. (Joe) **DONE**
-    * For return statements. **DONE**
-    * For assignment statements. (Joe) **DONE**
-    * For if statement (should return value of executed statement body). (Joe)
-* Implement Mstate.
-    * For expressions. **DONE (except side effects extra credit)**
-    * For assignment. **DONE**
-    * For variable declaration--as seen in test #4, needs to accept an
-      expression as initialization. (Kaan)
-    * For if statement. (Kaan) **DONE, NOT TESTED (except side effects)**
-* Implement `(interpret)`.  **DONE**
-* Implement side effects (EC).
+**PART 1 COMPLETE!**
+**PART 2**
+
+**Required Environment changes**
+*Layers*: Each layer will contain a list of variables and bindings similar to the basic environment of part 1. The initial environment consist of a single layer. Each time a new block is entered, you must "cons" a new layer to the front of your environment (but use abstraction and give the operation a better name than "cons"). Each time a variable is declared, that variable's binding goes into the top layer. Each time a variable is accessed (either to lookup its binding or to change it), the search must start in the top layer and work down. When a block is exited, the layer must be popped off of the environment, deleting any variables that were declared inside the block.
+
+
+Concepts to implement and extend in Parser
+* While
+* Break
+* Continue
+* Blocks
+
+
