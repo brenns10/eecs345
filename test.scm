@@ -1,8 +1,7 @@
 (load "interpreter.scm")
 
-(define pass-tests car)
-(define pass-vals cadr)
-(define fail-tests caddr)
+(define testnum car)
+(define expect cadr)
 
 (define test-name
   (lambda (group number)
@@ -14,33 +13,35 @@
                    ".txt")))
 
 (define run-test
-  (lambda (group number)
-    (interpret (test-name group number))))
-
-(define run-pass-tests
-  (lambda (group tests values)
-    (if (null? tests)
-        #t
-        (let ((rv (run-test group (car tests))))
-          (if (equal? rv (car values))
-              (run-pass-tests group (cdr tests) (cdr values))
-              (error (string-append "test " (test-name group (car tests)) " failed")))))))
-
-(define run-fail-tests
-  (lambda (group tests)
-    (if (null? tests)
-        #t
+  (lambda (group number expected)
+    (let ((rv (ignore-errors (lambda () (interpret (test-name group number))))))
+      (cond
+       ((and (condition? rv) (eq? expected 'error))
+        (write-string (string-append (test-name group number) ": Pass\n")))
+       ((eq? rv expected)
+        (write-string (string-append (test-name group number) ": Pass\n")))
+       ((condition? rv)
         (begin
-          (if (condition? (ignore-errors (lambda () (run-test group (car tests)))))
-              (run-fail-tests group (cdr tests))
-              (error (string-append "test " (test-name group (car tests)) " failed")))))))
+          (write-string (string-append (test-name group number)
+                                       ": Fail: expected "))
+          (display expected)
+          (write-string ", got error \"")
+          (write-condition-report rv (current-output-port))
+          (write-string "\"\n")))
+       (else (begin
+               (write-string (string-append (test-name group number)
+                             ": Fail: expected "))
+               (display expected)
+               (write-string ", got ")
+               (display rv)
+               (newline)))))))
+
+(define run-tests
+  (lambda (group list)
+    (map (lambda (v) (run-test group (testnum v) (expect v))) list)
+    'tests_complete))
 
 (define test
   (lambda (group)
-    (let ((spec (load (string-append group "/spec.scm"))))
-      (write-string "Non-error tests: ")
-      (display (run-pass-tests group (pass-tests spec) (pass-vals spec)))
-      (newline)
-      (write-string "Error tests: ")
-      (display (run-fail-tests group (fail-tests spec)))
-      (newline))))
+    (run-tests group (load (string-append group "/spec.scm")))))
+
