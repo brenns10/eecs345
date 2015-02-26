@@ -10,11 +10,6 @@
 ;; Utility Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Returns true if the argument is an atom.
-(define atom?
-  (lambda (x)
-    (not (or (pair? x) (null? x)))))
-
 ;; There appears not to be a native != function, so we're going to create one,
 ;; specifically for numbers
 (define !=
@@ -105,9 +100,6 @@
 (define leftoperand cadr)
 (define rightoperand caddr)
 
-;; This list defines what "operators" are statements.
-(define statement '(var = if return))
-
 ;; This function takes an operator atom and returns the Scheme function that
 ;; corresponds to it.
 (define opfunc-binary
@@ -143,52 +135,43 @@
 
 ;; Returns the value of an arithmetic expression.
 (define Mvalue_expression
-  (lambda (expression state)
-    (if (= 3 (length expression))
+  (lambda (expr state)
+    (if (= 3 (length expr))
         ;; A binary operator:
-        ((opfunc-binary (operator expression))
-         (Mvalue (leftoperand expression) state)
-         (Mvalue (rightoperand expression)
-                 (Mstate (leftoperand expression) state)))
+        ((opfunc-binary (operator expr))
+         (Mvalue (leftoperand expr) state)
+         (Mvalue (rightoperand expr)
+                 (Mstate (leftoperand expr) state)))
         ;; A unary operator:
-        ((opfunc-unary (operator expression))
-         (Mvalue (leftoperand expression) state)))))
+        ((opfunc-unary (operator expr))
+         (Mvalue (leftoperand expr) state)))))
 
 ;; Returns the value of a statement.  This is only currently implemented for
 ;; assignment statements (because they're kinda expressions too).
-(define Mvalue_statement
-  (lambda (expression state)
-    (cond
-      ; Mvalue for assign stmts
-      ((eq? (car expression) '=) (Mvalue (caddr expression) state))
-      (else #f))))
-
-;; Returns the value of a parse tree fragment which is a list (could be either
-;; an expression or statement).
-(define Mvalue_list
-  (lambda (expression state)
-    (cond
-     ((member (car expression) statement) (Mvalue_statement expression state))
-     (else (Mvalue_expression expression state)))))
+(define Mvalue_assign
+  (lambda (expr state)
+      (Mvalue (caddr expr) state)))
 
 ;; Returns the value of a parse tree fragment which is just an atom (could be
 ;; either a variable or literal).
 (define Mvalue_atom
-  (lambda (expression state)
+  (lambda (expr state)
     (cond
-      ((or (boolean? expression) (number? expression)) expression)
-      ((eq? expression 'true) #t)
-      ((eq? expression 'false) #f)
-      ((eq? 'undefined (state-lookup state expression))
+      ((or (boolean? expr) (number? expr)) expr)
+      ((eq? expr 'true) #t)
+      ((eq? expr 'false) #f)
+      ((eq? 'undefined (state-lookup state expr))
        (error "Use of undefined variable."))
-      (else (state-lookup state expression)))))
+      (else (state-lookup state expr)))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
-  (lambda (expression state)
+  (lambda (expr state)
     (cond
-     ((atom? expression) (Mvalue_atom expression state))
-     (else (Mvalue_list expression state)))))
+     ((list? expr) (cond
+                    ((eq? '= (car expr)) (Mvalue_assign expr state))
+                    (else (Mvalue_expression expr state))))
+     (else (Mvalue_atom expr state)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -200,8 +183,8 @@
 ;; the sake of abstraction we're keeping a separate Mboolean function, but for
 ;; the sake of non-redundant code, we're not repeating the code in Mvalue.
 (define Mboolean
-  (lambda (expression state)
-    (Mvalue expression state)))
+  (lambda (expr state)
+    (Mvalue expr state)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -210,101 +193,86 @@
 
 ;; Return the state after executing an if statement.
 (define Mstate_if
-  (lambda (expression state)
-    (if (= 3 (length expression))
+  (lambda (stmt state)
+    (if (= 3 (length stmt))
           ; IF statement
-          (if (Mboolean (list-ref expression 1) state)
-              (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
+          (if (Mboolean (list-ref stmt 1) state)
+              (Mstate (list-ref stmt 2) (Mstate (list-ref stmt 1)
                                                       state))
-              (Mstate (list-ref expression 1) state))
+              (Mstate (list-ref stmt 1) state))
           ; ELSE IF
-          (if (Mboolean (list-ref expression 1) state)
-              (Mstate (list-ref expression 2) (Mstate (list-ref expression 1)
+          (if (Mboolean (list-ref stmt 1) state)
+              (Mstate (list-ref stmt 2) (Mstate (list-ref stmt 1)
                                                       state))
-              (Mstate (list-ref expression 3) (Mstate (list-ref expression 1)
+              (Mstate (list-ref stmt 3) (Mstate (list-ref stmt 1)
                                                       state))))))
 
 ;; Return the state after executing a declaration.
 (define Mstate_declare
-  (lambda (expression state)
+  (lambda (stmt state)
     (cond
-     ((state-member state (cadr expression))
+     ((state-member state (cadr stmt))
       (error "Redeclaring variable."))
-     ((= 3 (length expression))
+     ((= 3 (length stmt))
       ;; This is declaration AND assignment.
-      (state-add (state-remove (Mstate (caddr expression) state)
-                               (cadr expression))
-                 (cadr expression)
-                 (Mvalue (caddr expression) state)))
+      (state-add (state-remove (Mstate (caddr stmt) state)
+                               (cadr stmt))
+                 (cadr stmt)
+                 (Mvalue (caddr stmt) state)))
         ;; This is just declaration.
-     (else (state-add state (cadr expression) 'undefined)))))
+     (else (state-add state (cadr stmt) 'undefined)))))
 
-;; Return the state after executing a statement.
-(define Mstate_statement
-  (lambda (expression state)
-    (cond
-     ((eq? 'var (car expression)) (Mstate_declare expression state))
-     ((eq? '= (car expression))
-      (if (state-member state (cadr expression))
-          (state-add (state-remove (Mstate (caddr expression) state)
-                                   (cadr expression))
-                     (cadr expression) (Mvalue (caddr expression) state))
-          (error "Using variable before declared.")))
-     ((eq? 'return (car expression))
-      (state-add (state-remove state "*return value*")
-                 "*return value*"
-                 (return_val (Mvalue (cadr expression) state))))
-     ((eq? 'if (car expression)) (Mstate_if expression state)))))
+(define Mstate_assign
+  (lambda (stmt state)
+    (if (state-member state (cadr stmt))
+          (state-add (state-remove (Mstate (caddr stmt) state)
+                                   (cadr stmt))
+                     (cadr stmt) (Mvalue (caddr stmt) state))
+          (error "Using variable before declared."))))
+
+(define Mstate_return
+  (lambda (stmt state)
+    (state-add (state-remove state "*return value*")
+               "*return value*"
+               (return_val (Mvalue (cadr stmt) state)))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
 (define return_val
-  (lambda (expression)
+  (lambda (stmt)
     (cond
-      ((eq? expression #t) 'true)
-      ((eq? expression #f) 'false)
-      (else expression))))
+      ((eq? stmt #t) 'true)
+      ((eq? stmt #f) 'false)
+      (else stmt))))
 
 ;; Since expressions may have assignments within them, you need to call Mstate
 ;; on each of the parts of the expression in order to get the state from them.
 (define Mstate_expression
-  (lambda (expression state)
-    (fold-left (lambda (state exp) (Mstate exp state))
-               state (cdr expression))))
-
-;; Return the state after executing a parse tree fragment which is a list (could
-;; be either an expression or statement).
-(define Mstate_list
-  (lambda (expression state)
-    (if (member (car expression) statement)
-        (Mstate_statement expression state)
-        (Mstate_expression expression state))))
+  (lambda (stmt state)
+    (fold-left (lambda (state stmt2) (Mstate stmt2 state))
+               state (cdr stmt))))
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
-  (lambda (expression state)
-    (if (list? expression)
-        (Mstate_list expression state)
-        state)))
+  (lambda (stmt state)
+    (cond
+     ((null? stmt) state)
+     ((list? stmt) (cond
+                    ((list? (car stmt)) (Mstate (cdr stmt) (Mstate (car stmt)
+                                                                   state)))
+                    ((eq? 'var (car stmt)) (Mstate_declare stmt state))
+                    ((eq? '= (car stmt)) (Mstate_assign stmt state))
+                    ((eq? 'if (car stmt)) (Mstate_if stmt state))
+                    ((eq? 'return (car stmt)) (Mstate_return stmt state))
+                    (else (Mstate_expression stmt state))))
+     (else state))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Overall interpreter functions
-;;
-;; These implement the actual high-level interpreter action.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (interpret_parsetree (parser filename) (state-new))))
-
-;; Given a parsed tree, interpret with the given state until the whole tree has
-;; been interpreted.
-(define interpret_parsetree
-  (lambda (tree state)
-    (if (null? tree)
-        (if (state-member state "*return value*")
-            (state-lookup state "*return value*")
-            'no_return_value)
-        (interpret_parsetree (cdr tree) (Mstate (car tree) state)))))
+    (state-lookup (Mstate (parser filename) (state-new)) "*return value*")))
