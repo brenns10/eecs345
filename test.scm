@@ -14,25 +14,24 @@
 
 (define run-test
   (lambda (group number expected)
-    (let ((rv (ignore-errors (lambda () (interpret (test-name group number))))))
+    (let ((rv (with-handlers ([exn:fail? (lambda (e) #f)])
+                             (interpret (test-name group number)))))
       (cond
-       ((and (condition? rv) (eq? expected 'error))
-        (write-string (string-append (test-name group number) ": Pass\n")))
+       ((and (not rv) (eq? expected 'error))
+        (display (string-append (test-name group number) ": Pass\n")))
        ((eq? rv expected)
-        (write-string (string-append (test-name group number) ": Pass\n")))
-       ((condition? rv)
+        (display (string-append (test-name group number) ": Pass\n")))
+       ((not rv)
         (begin
-          (write-string (string-append (test-name group number)
-                                       ": Fail: expected "))
+          (display (string-append (test-name group number)
+                                  ": Fail: expected "))
           (display expected)
-          (write-string ", got error \"")
-          (write-condition-report rv (current-output-port))
-          (write-string "\"\n")))
+          (display ", got error.\n")))
        (else (begin
-               (write-string (string-append (test-name group number)
-                             ": Fail: expected "))
+               (display (string-append (test-name group number)
+                                       ": Fail: expected "))
                (display expected)
-               (write-string ", got ")
+               (display ", got ")
                (display rv)
                (newline)))))))
 

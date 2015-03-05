@@ -1,22 +1,38 @@
 Testing
 =======
 
-I don't know what implementation you guys are using (Dr. Racket vs MIT vs
-Guile).  I (Stephen) have both, but most of my development uses MIT scheme.  My
-test harness (`test.scm`) is written for MIT Scheme (99% certain it doesn't work
-on Dr. Racket).  If you want to run the tests in a completely automated way with
-my harness, you gotta use MIT Scheme (it's easiest to use on Linux).
+The file `test.scm` contains a little test runner I (Stephen) wrote.  It's
+pretty magical.  It works in Racket -- use Pretty Big as the language.  It no
+longer works in MIT Scheme (which is a piece of shit).  Use Racket.
 
-Put the tests in a subdirectory (`tests_pt#`).  Name each test `##.txt`.  Then,
-create a file in the directory named `spec.scm`.  It should contain a list of
-pairs.  The first value of the pair is the test number, and the second value is
-the return value (use the atom `error` if an error is expected).  See the
-existing spec files for examples.
 
-Then, from the main repo directory, run this in the scheme command line:
+Creating Test Groups
+--------------------
 
-    (load "test.scm")
-    (test "tests_pt#")
+So, the test runner works on the concept that test groups are folders, and tests
+are files.  Inside a test group folder (like `tests_pt1`) there is a file named
+`spec.scm`.  This file contains a list of pairs -- test number and return value.
+The test runner just runs each test in that spec, and checks that it returns the
+same value.
 
-And it will run each test, and let you know if it passed or failed, and a reason
-it failed if it did so.
+To check for errors, the test runner uses the atom `'error`.  So put that as
+your return value if you expect an error.
+
+If you have any questions about the test group/runner operation, ask me or look
+at the existing tests.
+
+
+Running Test Groups
+-------------------
+
+From the Racket command line, load `test.scm`.  If you're using Dr. Racket, and
+you have `test.scm` open, that is done for you when you hit the run button.  If
+you're on the command line, use `(load "test.scm")`.
+
+Then, to run a test group, just run:
+
+    (test "group_name")
+
+For instance, for part 1:
+
+    (test "tests_pt1")
