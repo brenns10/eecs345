@@ -133,6 +133,12 @@
      (else (cons (add-to-layer (remove-from-layer (car state) var) var value)
                  (cdr state))))))
 
+(define state-trim
+  (lambda (state amount)
+    (if (eq? (length state) amount)
+        state
+        (state-trim (cdr state) amount))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
@@ -302,27 +308,46 @@
         (Mstate_block (cdr block) (Mstate (car block) state return break continue)
                       return break continue))))
 
+;; Executes a break statement.
 (define Mstate_break
   (lambda (stmt state return break continue)
     (break state)))
 
+;; Executes a continue statement.
 (define Mstate_continue
   (lambda (stmt state return break continue)
     (continue state)))
 
+;; Executes a while statement.
 (define Mstate_while
   (lambda (stmt state return break continue)
-    (call/cc
-     (lambda (break_new)
-       (letrec
-           ((loop (lambda (condition body state)
-                    (if (Mboolean condition state return break_new continue)
-                        (loop condition body
-                              (call/cc (lambda (continue_new)
-                                         (Mstate body (Mstate condition state return break continue)
-                                                 return break_new continue_new))))
-                        (Mstate condition state return break continue)))))
-         (loop (cadr stmt) (caddr stmt) state))))))
+    ;; No matter how many layers deep we went, the returned state should have
+    ;; the same number of layers as the original state.
+    (state-trim
+     ;; Create the new break continuation.
+     (call/cc
+      (lambda (break_new)
+        (letrec
+            ((loop (lambda (condition body state)
+                     (if (Mboolean condition state return break_new continue)
+                         ;; If the loop condition is true, tail recursively loop
+                         ;; again.
+                         (loop condition body
+                               ;; Create a continue continuation
+                               (call/cc (lambda (continue_new)
+                                          ;; Allow for condition side effects!
+                                          (Mstate body (Mstate condition state
+                                                               return break
+                                                               continue)
+                                                  return break_new
+                                                  continue_new))))
+                         ;; If the loop condition is false, just do the
+                         ;; condition side effects.
+                         (Mstate condition state return break continue)))))
+          ;; Execute the inner loop:
+          (loop (cadr stmt) (caddr stmt) state))))
+     ;; Argument to state-trim above.
+     (length state))))
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
