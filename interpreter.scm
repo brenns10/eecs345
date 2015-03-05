@@ -30,65 +30,120 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Interacting with the state.
-;;
-;; Current implementation of state is: '((var names ...) (var values)), since
-;; Dr. Connamacher said that would be easier for the future.
+;; Layer functions:  '((var_name1 var_name2) (var_value1 var_value2))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; A new layer.
+(define layer-new
+  (lambda () '(() ())))
+
+;; The first variable in the layer.
+(define firstvar caar)
+
+;; The value of the first variable in the layer.
+(define firstval caadr)
+
+;; Return the layer with all but the first binding present.
+(define scdr
+  (lambda (layer)
+      (list (cdar layer) (cdadr layer))))
+
+;; Return true if the layer is empty
+(define snull?
+  (lambda (layer)
+    (null? (car layer))))
+
+;; Add a (var value) binding to the layer.
+(define add-to-layer
+  (lambda (layer var value)
+    (list (cons var (car layer)) (cons value (cadr layer)))))
+
+;; Remove the first binding for var from the layer.
+(define remove-from-layer
+  (lambda (layer var)
+    (cond
+     ;; If the layer is empty, the binding is removed.
+     ((snull? layer) layer)
+     ;; If the first variable in the layer is the variable, return the rest of
+     ;; the layer.
+     ((eq? var (firstvar layer)) (scdr layer))
+     ;; Otherwise, put the current variable and value onto the layer with the
+     (else (add-to-layer (remove-from-layer (scdr layer) var)
+                         (firstvar layer) (firstval layer))))))
+
+;; Lookup the binding for var in the state layer.
+(define layer-lookup
+  (lambda (layer var)
+    (cond
+     ((snull? layer) 'not_found)
+     ((equal? var (firstvar layer)) (firstval layer))
+     (else (layer-lookup (scdr layer) var)))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; State functions (states are lists of layers)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Return a new, empty state.
 (define state-new
-  (lambda () '(() ())))
+  (lambda () '((() ()))))
 
-;; The first variable in the state.
-(define firstvar caar)
-
-;; The value of the first variable in the state.
-(define firstval caadr)
-
-;; Return the state with all but the first binding present.
-(define scdr
+;; Add a layer to the state.
+(define add-layer
   (lambda (state)
-      (list (cdar state) (cdadr state))))
+    (cons (layer-new) state)))
 
-;; Return true if the state is empty
-(define snull?
+;; Remove a layer from the state.
+(define remove-layer
   (lambda (state)
-    (null? (car state))))
+    (cdr state)))
 
 ;; Add a (var value) binding to the state.
 (define state-add
   (lambda (state var value)
-    (list (cons var (car state)) (cons value (cadr state)))))
+    (cons (add-to-layer (car state) var value) (cdr state))))
 
-;; Remove the first binding for var from the state.
+;; Remove the first binding for var from the state.  (TODO: remove this before
+;; turning in)
 (define state-remove
   (lambda (state var)
     (cond
-     ;; If the state is empty, the binding is removed.
-     ((snull? state) state)
-     ;; If the first variable in the state is the variable, return the rest of
-     ;; the state.
-     ((eq? var (firstvar state)) (scdr state))
-     ;; Otherwise, put the current variable and value onto the state with the
-     (else (state-add (state-remove (scdr state) var)
-                      (firstvar state) (firstval state))))))
+     ((null? state) state)
+     ((not (eq? (car state) (remove-from-layer (car state) var)))
+      (cons (remove-from-layer (car state) var) (cdr state)))
+     (else (cons (car state) (state-remove (cdr state) var))))))
 
-;; Lookup the binding for var in state.
+;; Lookup the binding for var in the state.
 (define state-lookup
   (lambda (state var)
     (cond
-     ((snull? state) (error "Variable binding not found"))
-     ((equal? var (firstvar state)) (firstval state))
-     (else (state-lookup (scdr state) var)))))
+     ((null? state) (error "Variable binding not found."))
+     ((eq? (layer-lookup (car state) var) 'not_found)
+      (state-lookup (cdr state) var))
+     (else (layer-lookup (car state) var))))) ; TODO: can improve with let
 
 ;; Return whether the variable is in the state.
 (define state-member
   (lambda (state var)
     (cond
-     ((snull? state) #f)
-     ((equal? var (firstvar state)) #t)
-     (else (state-member (scdr state) var)))))
+     ((null? state) #f)
+     ((eq? (layer-lookup (car state) var) 'not_found)
+      (state-member (cdr state) var))
+     (else #t))))
+
+;; Update the binding for a variable in the state, preserving its layer
+;; location.
+(define state-update
+  (lambda (state var value)
+    (cond
+     ;; No more layers:
+     ((null? state) (error "Variable binding not found."))
+     ;; The layer doesn't contain the variable:
+     ((eq? (layer-lookup (car state) var) 'not_found)
+      (cons (car state) (state-update (cdr state) var value)))
+     ;; The layer does contain the variable:
+     (else (cons (add-to-layer (remove-from-layer (car state) var) var value)
+                 (cdr state))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -215,19 +270,17 @@
       (error "Redeclaring variable."))
      ((= 3 (length stmt))
       ;; This is declaration AND assignment.
-      (state-add (state-remove (Mstate (caddr stmt) state)
-                               (cadr stmt))
+      (state-add (Mstate (caddr stmt) state)
                  (cadr stmt)
                  (Mvalue (caddr stmt) state)))
-        ;; This is just declaration.
+     ;; This is just declaration.
      (else (state-add state (cadr stmt) 'undefined)))))
 
 (define Mstate_assign
   (lambda (stmt state)
     (if (state-member state (cadr stmt))
-          (state-add (state-remove (Mstate (caddr stmt) state)
-                                   (cadr stmt))
-                     (cadr stmt) (Mvalue (caddr stmt) state))
+          (state-update (Mstate (caddr stmt) state)
+                        (cadr stmt) (Mvalue (caddr stmt) state))
           (error "Using variable before declared."))))
 
 (define Mstate_return
