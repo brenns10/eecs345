@@ -94,9 +94,7 @@
     (cons (layer-new) state)))
 
 ;; Remove a layer from the state.
-(define remove-layer
-  (lambda (state)
-    (cdr state)))
+(define remove-layer cdr)
 
 ;; Add a (var value) binding to the state.
 (define state-add
