@@ -178,27 +178,27 @@
 
 ;; Returns the value of an arithmetic expression.
 (define Mvalue_expression
-  (lambda (expr state)
+  (lambda (expr state return break continue)
     (if (= 3 (length expr))
         ;; A binary operator:
         ((opfunc-binary (operator expr))
-         (Mvalue (leftoperand expr) state)
+         (Mvalue (leftoperand expr) state return break continue)
          (Mvalue (rightoperand expr)
-                 (Mstate (leftoperand expr) state)))
+                 (Mstate (leftoperand expr) state return break continue) return break continue))
         ;; A unary operator:
         ((opfunc-unary (operator expr))
-         (Mvalue (leftoperand expr) state)))))
+         (Mvalue (leftoperand expr) state return break continue)))))
 
 ;; Returns the value of a statement.  This is only currently implemented for
 ;; assignment statements (because they're kinda expressions too).
 (define Mvalue_assign
-  (lambda (expr state)
-      (Mvalue (caddr expr) state)))
+  (lambda (expr state return break continue)
+      (Mvalue (caddr expr) state return break continue)))
 
 ;; Returns the value of a parse tree fragment which is just an atom (could be
 ;; either a variable or literal).
 (define Mvalue_atom
-  (lambda (expr state)
+  (lambda (expr state return break continue)
     (cond
       ((or (boolean? expr) (number? expr)) expr)
       ((eq? expr 'true) #t)
@@ -209,12 +209,12 @@
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
-  (lambda (expr state)
+  (lambda (expr state return break continue)
     (cond
      ((list? expr) (cond
-                    ((eq? '= (car expr)) (Mvalue_assign expr state))
-                    (else (Mvalue_expression expr state))))
-     (else (Mvalue_atom expr state)))))
+                    ((eq? '= (car expr)) (Mvalue_assign expr state return break continue))
+                    (else (Mvalue_expression expr state return break continue))))
+     (else (Mvalue_atom expr state return break continue)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -226,8 +226,8 @@
 ;; the sake of abstraction we're keeping a separate Mboolean function, but for
 ;; the sake of non-redundant code, we're not repeating the code in Mvalue.
 (define Mboolean
-  (lambda (expr state)
-    (Mvalue expr state)))
+  (lambda (expr state return break continue)
+    (Mvalue expr state return break continue)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -236,45 +236,47 @@
 
 ;; Return the state after executing an if statement.
 (define Mstate_if
-  (lambda (stmt state)
+  (lambda (stmt state return break continue)
     (if (= 3 (length stmt))
           ; IF statement
-          (if (Mboolean (list-ref stmt 1) state)
+          (if (Mboolean (list-ref stmt 1) state return break continue)
               (Mstate (list-ref stmt 2) (Mstate (list-ref stmt 1)
-                                                      state))
-              (Mstate (list-ref stmt 1) state))
+                                                state return break continue)
+                      return break continue)
+              (Mstate (list-ref stmt 1) state return break continue))
           ; ELSE IF
-          (if (Mboolean (list-ref stmt 1) state)
+          (if (Mboolean (list-ref stmt 1) state return break continue)
               (Mstate (list-ref stmt 2) (Mstate (list-ref stmt 1)
-                                                      state))
+                                                state return break continue)
+                      return break continue)
               (Mstate (list-ref stmt 3) (Mstate (list-ref stmt 1)
-                                                      state))))))
+                                                state return break continue)
+                      return break continue)))))
 
 ;; Return the state after executing a declaration.
 (define Mstate_declare
-  (lambda (stmt state)
+  (lambda (stmt state return break continue)
     (cond
      ((state-member state (cadr stmt))
       (error "Redeclaring variable."))
      ((= 3 (length stmt))
       ;; This is declaration AND assignment.
-      (state-add (Mstate (caddr stmt) state)
+      (state-add (Mstate (caddr stmt) state return break continue)
                  (cadr stmt)
-                 (Mvalue (caddr stmt) state)))
+                 (Mvalue (caddr stmt) state return break continue)))
      ;; This is just declaration.
      (else (state-add state (cadr stmt) 'undefined)))))
 
 (define Mstate_assign
-  (lambda (stmt state)
+  (lambda (stmt state return break continue)
     (if (state-member state (cadr stmt))
-          (state-update (Mstate (caddr stmt) state)
-                        (cadr stmt) (Mvalue (caddr stmt) state))
+          (state-update (Mstate (caddr stmt) state return break continue)
+                        (cadr stmt) (Mvalue (caddr stmt) state return break continue))
           (error "Using variable before declared."))))
 
 (define Mstate_return
-  (lambda (stmt state)
-    (state-update state "*return value*"
-                  (return_val (Mvalue (cadr stmt) state)))))
+  (lambda (stmt state return break continue)
+    (return (return_val (Mvalue (cadr stmt) state return break continue)))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
@@ -288,35 +290,65 @@
 ;; Since expressions may have assignments within them, you need to call Mstate
 ;; on each of the parts of the expression in order to get the state from them.
 (define Mstate_expression
-  (lambda (stmt state)
-    (fold-left (lambda (state stmt2) (Mstate stmt2 state))
+  (lambda (stmt state return break continue)
+    (fold-left (lambda (state stmt2) (Mstate stmt2 state return break continue))
                state (cdr stmt))))
 
 ;; Execute a list of statements.
 (define Mstate_block
-  (lambda (block state)
+  (lambda (block state return break continue)
     (if (null? block)
         state
-        (Mstate_block (cdr block) (Mstate (car block) state)))))
+        (Mstate_block (cdr block) (Mstate (car block) state return break continue)
+                      return break continue))))
+
+(define Mstate_break
+  (lambda (stmt state return break continue)
+    (break state)))
+
+(define Mstate_continue
+  (lambda (stmt state return break continue)
+    (continue state)))
+
+(define Mstate_while
+  (lambda (stmt state return break continue)
+    (call/cc
+     (lambda (break_new)
+       (letrec
+           ((loop (lambda (condition body state)
+                    (if (Mboolean condition state return break_new continue)
+                        (loop condition body
+                              (call/cc (lambda (continue_new)
+                                         (Mstate body (Mstate condition state return break continue)
+                                                 return break_new continue_new))))
+                        (Mstate condition state return break continue)))))
+         (loop (cadr stmt) (caddr stmt) state))))))
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
-  (lambda (stmt state)
+  (lambda (stmt state return break continue)
     (cond
      ((null? stmt) state)
      ((list? stmt) (cond
                     ;; If the statement is a list of lists, then we know this is
                     ;; the beginning of the parse tree.  No need to add layer.
-                    ((list? (car stmt)) (Mstate_block stmt state))
+                    ((list? (car stmt)) (Mstate_block stmt state return break continue))
                     ;; If the statement is a block, add a layer, execute the
                     ;; block, and remove the layer.
                     ((eq? 'begin (car stmt))
-                     (remove-layer (Mstate_block (cdr stmt) (add-layer state))))
-                    ((eq? 'var (car stmt)) (Mstate_declare stmt state))
-                    ((eq? '= (car stmt)) (Mstate_assign stmt state))
-                    ((eq? 'if (car stmt)) (Mstate_if stmt state))
-                    ((eq? 'return (car stmt)) (Mstate_return stmt state))
-                    (else (Mstate_expression stmt state))))
+                     (remove-layer (Mstate_block (cdr stmt) (add-layer state)
+                                                 return break continue)))
+                    ((eq? 'var (car stmt)) (Mstate_declare stmt state return
+                                                           break continue))
+                    ((eq? '= (car stmt)) (Mstate_assign stmt state return
+                                                        break continue))
+                    ((eq? 'if (car stmt)) (Mstate_if stmt state return break continue))
+                    ((eq? 'return (car stmt)) (Mstate_return stmt state return
+                                                             break continue))
+                    ((eq? 'break (car stmt)) (Mstate_break stmt state return break continue))
+                    ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
+                    ((eq? 'continue (car stmt)) (Mstate_continue stmt state return break continue))
+                    (else (Mstate_expression stmt state return break continue))))
      (else state))))
 
 
@@ -327,6 +359,6 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (state-lookup (Mstate (parser filename)
-                          (state-add (state-new) "*return value*" 'undefined))
-                  "*return value*")))
+    (call/cc
+     (lambda (return)
+       (Mstate (parser filename) (state-new) return return return)))))
