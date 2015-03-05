@@ -101,16 +101,6 @@
   (lambda (state var value)
     (cons (add-to-layer (car state) var value) (cdr state))))
 
-;; Remove the first binding for var from the state.  (TODO: remove this before
-;; turning in)
-(define state-remove
-  (lambda (state var)
-    (cond
-     ((null? state) state)
-     ((not (eq? (car state) (remove-from-layer (car state) var)))
-      (cons (remove-from-layer (car state) var) (cdr state)))
-     (else (cons (car state) (state-remove (cdr state) var))))))
-
 ;; Lookup the binding for var in the state.
 (define state-lookup
   (lambda (state var)
@@ -283,9 +273,8 @@
 
 (define Mstate_return
   (lambda (stmt state)
-    (state-add (state-remove state "*return value*")
-               "*return value*"
-               (return_val (Mvalue (cadr stmt) state)))))
+    (state-update state "*return value*"
+                  (return_val (Mvalue (cadr stmt) state)))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
@@ -303,14 +292,26 @@
     (fold-left (lambda (state stmt2) (Mstate stmt2 state))
                state (cdr stmt))))
 
+;; Execute a list of statements.
+(define Mstate_block
+  (lambda (block state)
+    (if (null? block)
+        state
+        (Mstate_block (cdr block) (Mstate (car block) state)))))
+
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
   (lambda (stmt state)
     (cond
      ((null? stmt) state)
      ((list? stmt) (cond
-                    ((list? (car stmt)) (Mstate (cdr stmt) (Mstate (car stmt)
-                                                                   state)))
+                    ;; If the statement is a list of lists, then we know this is
+                    ;; the beginning of the parse tree.  No need to add layer.
+                    ((list? (car stmt)) (Mstate_block stmt state))
+                    ;; If the statement is a block, add a layer, execute the
+                    ;; block, and remove the layer.
+                    ((eq? 'begin (car stmt))
+                     (remove-layer (Mstate_block (cdr stmt) (add-layer state))))
                     ((eq? 'var (car stmt)) (Mstate_declare stmt state))
                     ((eq? '= (car stmt)) (Mstate_assign stmt state))
                     ((eq? 'if (car stmt)) (Mstate_if stmt state))
@@ -326,4 +327,6 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (state-lookup (Mstate (parser filename) (state-new)) "*return value*")))
+    (state-lookup (Mstate (parser filename)
+                          (state-add (state-new) "*return value*" 'undefined))
+                  "*return value*")))
