@@ -294,13 +294,28 @@
     (fold-left (lambda (state stmt2) (Mstate stmt2 state return break continue))
                state (cdr stmt))))
 
-;; Execute a list of statements.
-(define Mstate_block
+;; Execute a list of statements.  This doesn't add a layer, it just executes the
+;; statements in order.
+(define Mstate_stmtlist
   (lambda (block state return break continue)
     (if (null? block)
         state
-        (Mstate_block (cdr block) (Mstate (car block) state return break continue)
-                      return break continue))))
+        (Mstate_stmtlist (cdr block)
+                         (Mstate (car block) state return
+                                 break continue)
+                         return break continue))))
+
+;; Execute a block of statements.  This is different from a statement list in
+;; that it adds a layer to the state, then removes it.
+(define Mstate_block
+  (lambda (block state return break continue)
+    (remove-layer (Mstate_stmtlist (cdr block) (add-layer state)
+                                   return
+                                   ;; Modify the break and continue
+                                   ;; continuations so that they remove the
+                                   ;; correct number of layers when they fire.
+                                   (lambda (s) (break (remove-layer s)))
+                                   (lambda (s) (continue (remove-layer s)))))))
 
 ;; Executes a break statement.
 (define Mstate_break
@@ -344,16 +359,8 @@
     (cond
      ((null? stmt) state)
      ((list? stmt) (cond
-                    ;; If the statement is a list of lists, then we know this is
-                    ;; the beginning of the parse tree.  No need to add layer.
-                    ((list? (car stmt)) (Mstate_block stmt state return break continue))
-                    ;; If the statement is a block, add a layer, execute the
-                    ;; block, and remove the layer.
-                    ((eq? 'begin (car stmt))
-                     (remove-layer (Mstate_block (cdr stmt) (add-layer state)
-                                                 return
-                                                 (lambda (s) (break (remove-layer s)))
-                                                 (lambda (s) (continue (remove-layer s))))))
+                    ((list? (car stmt)) (Mstate_stmtlist stmt state return break continue))
+                    ((eq? 'begin (car stmt)) (Mstate_block stmt state return break continue))
                     ((eq? 'var (car stmt)) (Mstate_declare stmt state return
                                                            break continue))
                     ((eq? '= (car stmt)) (Mstate_assign stmt state return
