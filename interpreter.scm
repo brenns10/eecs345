@@ -133,12 +133,6 @@
      (else (cons (add-to-layer (remove-from-layer (car state) var) var value)
                  (cdr state))))))
 
-(define state-trim
-  (lambda (state amount)
-    (if (eq? (length state) amount)
-        state
-        (state-trim (cdr state) amount))))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
@@ -321,33 +315,28 @@
 ;; Executes a while statement.
 (define Mstate_while
   (lambda (stmt state return break continue)
-    ;; No matter how many layers deep we went, the returned state should have
-    ;; the same number of layers as the original state.
-    (state-trim
-     ;; Create the new break continuation.
-     (call/cc
-      (lambda (break_new)
-        (letrec
-            ((loop (lambda (condition body state)
-                     (if (Mboolean condition state return break_new continue)
-                         ;; If the loop condition is true, tail recursively loop
-                         ;; again.
-                         (loop condition body
-                               ;; Create a continue continuation
-                               (call/cc (lambda (continue_new)
-                                          ;; Allow for condition side effects!
-                                          (Mstate body (Mstate condition state
-                                                               return break
-                                                               continue)
-                                                  return break_new
-                                                  continue_new))))
-                         ;; If the loop condition is false, just do the
-                         ;; condition side effects.
-                         (Mstate condition state return break continue)))))
-          ;; Execute the inner loop:
-          (loop (cadr stmt) (caddr stmt) state))))
-     ;; Argument to state-trim above.
-     (length state))))
+    ;; Create the new break continuation.
+    (call/cc
+     (lambda (break_new)
+       (letrec
+           ((loop (lambda (condition body state)
+                    (if (Mboolean condition state return break_new continue)
+                        ;; If the loop condition is true, tail recursively loop
+                        ;; again.
+                        (loop condition body
+                              ;; Create a continue continuation
+                              (call/cc (lambda (continue_new)
+                                         ;; Allow for condition side effects!
+                                         (Mstate body (Mstate condition state
+                                                              return break
+                                                              continue)
+                                                 return break_new
+                                                 continue_new))))
+                        ;; If the loop condition is false, just do the
+                        ;; condition side effects.
+                        (Mstate condition state return break continue)))))
+         ;; Execute the inner loop:
+         (loop (cadr stmt) (caddr stmt) state))))))
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
@@ -362,7 +351,9 @@
                     ;; block, and remove the layer.
                     ((eq? 'begin (car stmt))
                      (remove-layer (Mstate_block (cdr stmt) (add-layer state)
-                                                 return break continue)))
+                                                 return
+                                                 (lambda (s) (break (remove-layer s)))
+                                                 (lambda (s) (continue (remove-layer s))))))
                     ((eq? 'var (car stmt)) (Mstate_declare stmt state return
                                                            break continue))
                     ((eq? '= (car stmt)) (Mstate_assign stmt state return
@@ -386,4 +377,4 @@
   (lambda (filename)
     (call/cc
      (lambda (return)
-       (Mstate (parser filename) (state-new) return return return)))))
+       (Mstate (parser filename) (state-new) return #f #f)))))
