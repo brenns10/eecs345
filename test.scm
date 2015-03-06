@@ -14,26 +14,18 @@
 
 (define run-test
   (lambda (group number expected)
-    (let ((rv (with-handlers ([exn:fail? (lambda (e) #f)])
+    (let ((rv (with-handlers ([exn:fail? (lambda (e) 'error)])
                              (interpret (test-name group number)))))
-      (cond
-       ((and (not rv) (eq? expected 'error))
-        (display (string-append (test-name group number) ": Pass\n")))
-       ((eq? rv expected)
-        (display (string-append (test-name group number) ": Pass\n")))
-       ((not rv)
-        (begin
-          (display (string-append (test-name group number)
-                                  ": Fail: expected "))
-          (display expected)
-          (display ", got error.\n")))
-       (else (begin
-               (display (string-append (test-name group number)
-                                       ": Fail: expected "))
-               (display expected)
-               (display ", got ")
-               (display rv)
-               (newline)))))))
+      (if (eq? rv expected)
+          (display (string-append (test-name group number) ": Pass\n"))
+          ;; Else
+          (begin
+            (display (string-append (test-name group number)
+                                    ": Fail: expected "))
+            (display expected)
+            (display ", got ")
+            (display rv)
+            (newline))))))
 
 (define run-tests
   (lambda (group list)
