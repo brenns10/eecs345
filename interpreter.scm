@@ -317,16 +317,6 @@
                                    (lambda (s) (break (remove-layer s)))
                                    (lambda (s) (continue (remove-layer s)))))))
 
-;; Executes a break statement.
-(define Mstate_break
-  (lambda (stmt state return break continue)
-    (break state)))
-
-;; Executes a continue statement.
-(define Mstate_continue
-  (lambda (stmt state return break continue)
-    (continue state)))
-
 ;; Executes a while statement.
 (define Mstate_while
   (lambda (stmt state return break continue)
@@ -366,11 +356,10 @@
                     ((eq? '= (car stmt)) (Mstate_assign stmt state return
                                                         break continue))
                     ((eq? 'if (car stmt)) (Mstate_if stmt state return break continue))
-                    ((eq? 'return (car stmt)) (Mstate_return stmt state return
-                                                             break continue))
-                    ((eq? 'break (car stmt)) (Mstate_break stmt state return break continue))
+                    ((eq? 'return (car stmt)) (Mstate_return stmt state return break continue))
+                    ((eq? 'break (car stmt)) (break state))
+                    ((eq? 'continue (car stmt)) (continue state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
-                    ((eq? 'continue (car stmt)) (Mstate_continue stmt state return break continue))
                     (else (Mstate_expression stmt state return break continue))))
      (else state))))
 
