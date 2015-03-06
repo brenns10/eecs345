@@ -44,12 +44,12 @@
 (define firstval caadr)
 
 ;; Return the layer with all but the first binding present.
-(define scdr
+(define layer-cdr
   (lambda (layer)
       (list (cdar layer) (cdadr layer))))
 
 ;; Return true if the layer is empty
-(define snull?
+(define layer-empty?
   (lambda (layer)
     (null? (car layer))))
 
@@ -63,21 +63,21 @@
   (lambda (layer var)
     (cond
      ;; If the layer is empty, the binding is removed.
-     ((snull? layer) layer)
+     ((layer-empty? layer) layer)
      ;; If the first variable in the layer is the variable, return the rest of
      ;; the layer.
-     ((eq? var (firstvar layer)) (scdr layer))
+     ((eq? var (firstvar layer)) (layer-cdr layer))
      ;; Otherwise, put the current variable and value onto the layer with the
-     (else (add-to-layer (remove-from-layer (scdr layer) var)
+     (else (add-to-layer (remove-from-layer (layer-cdr layer) var)
                          (firstvar layer) (firstval layer))))))
 
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
   (lambda (layer var)
     (cond
-     ((snull? layer) 'not_found)
+     ((layer-empty? layer) 'not_found)
      ((equal? var (firstvar layer)) (firstval layer))
-     (else (layer-lookup (scdr layer) var)))))
+     (else (layer-lookup (layer-cdr layer) var)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -111,12 +111,12 @@
      (else (layer-lookup (car state) var))))) ; TODO: can improve with let
 
 ;; Return whether the variable is in the state.
-(define state-member
+(define state-member?
   (lambda (state var)
     (cond
      ((null? state) #f)
      ((eq? (layer-lookup (car state) var) 'not_found)
-      (state-member (cdr state) var))
+      (state-member? (cdr state) var))
      (else #t))))
 
 ;; Update the binding for a variable in the state, preserving its layer
@@ -257,7 +257,7 @@
 (define Mstate_declare
   (lambda (stmt state return break continue)
     (cond
-     ((state-member state (cadr stmt))
+     ((state-member? state (cadr stmt))
       (error "Redeclaring variable."))
      ((= 3 (length stmt))
       ;; This is declaration AND assignment.
@@ -269,7 +269,7 @@
 
 (define Mstate_assign
   (lambda (stmt state return break continue)
-    (if (state-member state (cadr stmt))
+    (if (state-member? state (cadr stmt))
           (state-update (Mstate (caddr stmt) state return break continue)
                         (cadr stmt) (Mvalue (caddr stmt) state return break continue))
           (error "Using variable before declared."))))
