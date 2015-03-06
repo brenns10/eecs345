@@ -276,7 +276,9 @@
 
 (define Mstate_return
   (lambda (stmt state return break continue)
-    (return (return_val (Mvalue (cadr stmt) state return break continue)))))
+    (return (state-update (Mstate (cadr stmt) state return break continue)
+                          'return
+                          (Mvalue (cadr stmt) state return break continue)))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
@@ -310,10 +312,10 @@
 (define Mstate_block
   (lambda (block state return break continue)
     (remove-layer (Mstate_stmtlist (cdr block) (add-layer state)
-                                   return
                                    ;; Modify the break and continue
                                    ;; continuations so that they remove the
                                    ;; correct number of layers when they fire.
+                                   (lambda (s) (return (remove-layer s)))
                                    (lambda (s) (break (remove-layer s)))
                                    (lambda (s) (continue (remove-layer s)))))))
 
@@ -371,6 +373,10 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (call/cc
-     (lambda (return)
-       (Mstate (parser filename) (state-new) return #f #f)))))
+    (return_val (state-lookup
+                 (call/cc
+                  (lambda (return)
+                    (Mstate (parser filename) (state-add (state-new)
+                                                         'return 'undefined)
+                            return #f #f)))
+                 'return))))
