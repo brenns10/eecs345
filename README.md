@@ -26,9 +26,20 @@ Contributors:
 To Do:
 * Implement layers in interpreter.
     * **DONE** by Stephen.
-* Implement Mstate using CPS - return and break continuations.
+* Change all Mstate functions to take return, break, continue.
+    * **DONE** by Stephen.
 * While: must be done tail-recursively!
-* Break
-* Continue
+    * **DONE** by Stephen.
+* Break, Continue
+    * **DONE** by Stephen.
 * Blocks
     * **DONE** by Stephen.
+
+**NOTE FROM STEPHEN**
+
+So, I pretty much did all of Part 2.  I promise, I didn't intend to.  I made the
+call/cc branch as a way to experiment in how we should implement the return,
+break, and continue portions of the code.  As it turns out, my experimenting
+worked, and that pretty much finished the project.  I'd be willing to take some
+time to sit down and talk to everyone about what I did while implementing it,
+and how it works now.
