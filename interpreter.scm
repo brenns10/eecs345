@@ -3,7 +3,7 @@
 ;; Joe Fennimore (jrf118)
 ;; Kaan Atesoglu (aka43)
 
-(load "simpleParser.scm")
+(load "functionParser.scm")
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
