@@ -9,37 +9,37 @@ Contributors:
 * Joe Fennimore (jrf118)
 * Kaan Atesoglu (aka43)
 
+For this part on, we'll be using the
+[Github Flow](https://guides.github.com/introduction/flow/).  The long and short
+of it, if you've never done it, is:
+
+    $ git pull origin master           # Update your repo.
+    $ git checkout -b name-of-branch   # Create a new branch for something.
+    $ emacs ...                        # Make your changes.
+    $ git commit ...                   # Commit them.
+    $ emacs ...                        # Continue making changes.
+    $ git commit ...                   # Commit as you go, as many as you'd like.
+    $ git push --set-upstream origin name-of-branch
+
+Once you've pushed the branch to Github, you can create a pull request.  We get
+to look at the code, run it ourselves, and make comments.  Once it's approved by
+the other partners, we merge it in on Github.  This is a pretty standard
+workflow, and it's very useful!
+
 **PART 1 COMPLETE!**
 
-**PART 2: Blocks, While, Break, Continue**
+**PART 2 COMPLETE!**
 
-*Layers*: Each layer will contain a list of variables and bindings similar to
- the basic environment of part 1. The initial environment consist of a single
- layer. Each time a new block is entered, you must "cons" a new layer to the
- front of your environment (but use abstraction and give the operation a better
- name than "cons"). Each time a variable is declared, that variable's binding
- goes into the top layer. Each time a variable is accessed (either to lookup its
- binding or to change it), the search must start in the top layer and work
- down. When a block is exited, the layer must be popped off of the environment,
- deleting any variables that were declared inside the block.
+**PART 3: Functions**
 
-To Do:
-* Implement layers in interpreter.
-    * **DONE** by Stephen.
-* Change all Mstate functions to take return, break, continue.
-    * **DONE** by Stephen.
-* While: must be done tail-recursively!
-    * **DONE** by Stephen.
-* Break, Continue
-    * **DONE** by Stephen.
-* Blocks
-    * **DONE** by Stephen.
+- [ ] Create `Mstate` for function declarations.
+    - This involves creating a closure.
+    - It needs to work in global scope, or inside another function.
+- [ ] Create `Mstate` and `Mvalue` for function calls.
+    - This should be substantially easier now that we're using boxes.
+- [ ] Rework the overall parser to read declarations, then call `main`.
+- [ ] Make sure functions with no `return` statement still end up calling the
+  `return` continuation!
 
-**NOTE FROM STEPHEN**
-
-So, I pretty much did all of Part 2.  I promise, I didn't intend to.  I made the
-call/cc branch as a way to experiment in how we should implement the return,
-break, and continue portions of the code.  As it turns out, my experimenting
-worked, and that pretty much finished the project.  I'd be willing to take some
-time to sit down and talk to everyone about what I did while implementing it,
-and how it works now.
+Note that since we have switched to boxes, we can stop worrying about doing
+anything special for side effects.  They just work!
