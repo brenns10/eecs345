@@ -270,9 +270,7 @@
 
 (define Mstate_return
   (lambda (stmt state return break continue)
-    (return (state-update (Mstate (cadr stmt) state return break continue)
-                          'return
-                          (Mvalue (cadr stmt) state return break continue)))))
+    (return  (Mvalue (cadr stmt) state return break continue))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
@@ -355,10 +353,6 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (return_val (state-lookup
-                 (call/cc
-                  (lambda (return)
-                    (Mstate (parser filename) (state-add (state-new)
-                                                         'return 'undefined)
-                            return #f #f)))
-                 'return))))
+    (return_val (call/cc
+                 (lambda (return)
+                   (Mstate (parser filename) (state-new) return #f #f))))))
