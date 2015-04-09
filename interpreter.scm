@@ -103,7 +103,7 @@
 (define trim-state
   (lambda (funcname state)
     (if (null? state)
-        'func_name_not_found
+        (error "Function name not found.")
         (let ((val (layer-lookup (car state) funcname)))
           (if (eq? val 'not_found)
               (trim-state (cdr state) funcname)
