@@ -329,13 +329,11 @@
 (define Mstate_funcdecl
   (lambda (funcdecl state return break continue)
     (let (fname (cadr funcdecl))
-    (if (state-member? state fname)
-      (error "Redefining function.")
-        (state-add fname
-                 ((caddr funcdecl) ; Parameter list
-                  (cadddr funcdecl) ; Body
-                  (lambda (fname state) ; Function to create the appropriate environment
-                    trim-state (fname state))))))))
+      (state-add fname
+               ((caddr funcdecl) ; Parameter list
+                (cadddr funcdecl) ; Body
+                (lambda (fname state) ; Function to create the appropriate environment
+                  trim-state (fname state)))))))
     
 
 ;; Return the state after executing any parse tree fragment.
