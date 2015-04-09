@@ -315,7 +315,7 @@
                                    ;; Modify the break and continue
                                    ;; continuations so that they remove the
                                    ;; correct number of layers when they fire.
-                                   (lambda (s) (return (remove-layer s)))
+                                   return
                                    (lambda (s) (break (remove-layer s)))
                                    (lambda (s) (continue (remove-layer s)))))))
 
