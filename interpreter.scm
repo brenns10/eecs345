@@ -330,10 +330,24 @@
   (lambda (funcdecl state return break continue)
     (let ((fname (cadr funcdecl)))
       (state-add state fname
-               (list (caddr funcdecl) ; Parameter list
-                (cadddr funcdecl) ; Body
-                (lambda (state) ; Function to create the appropriate environment
-                  (trim-state fname state)))))))
+                 (list (caddr funcdecl) ; Parameter list
+                       (cadddr funcdecl) ; Body
+                       (lambda (state) ; Function to create the appropriate environment
+                         (trim-state fname state)))))))
+
+;; Get the state for a function call.
+(define Mstate_funccall
+  (lambda (funccall state return break continue)
+    (let* ((closure  (state-lookup state (cadr funccall)))
+           (outerenv ((caddr closure) state))
+           (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
+           (newstate (cons (list (car closure) funcvals) outerenv))
+           (err (lambda (v) (error "Can't break or continue here."))))
+      (begin
+        (call/cc
+         (lambda (return)
+           (Mstate_stmtlist (cadr closure) state return err err)))
+        state))))
 
 
 ;; Return the state after executing any parse tree fragment.
@@ -354,6 +368,7 @@
                     ((eq? 'continue (car stmt)) (continue state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
                     ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state return break continue))
+                    ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state return break continue))
                     (else state)))
      (else state))))
 
@@ -369,4 +384,4 @@
                        (state (Mstate (parser filename) (state-new) err err err)))
                   (call/cc
                    (lambda (return)
-                     (Mstate_funccall (state-lookup state "main") state return err err)))))))
+                     (Mstate '(funcall main) state return err err)))))))
