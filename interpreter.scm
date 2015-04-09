@@ -350,16 +350,9 @@
 ;; Get the state for a function call.
 (define Mstate_funccall
   (lambda (funccall state return break continue)
-    (let* ((closure  (state-lookup state (cadr funccall)))
-           (outerenv ((caddr closure) state))
-           (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
-           (newstate (cons (list (car closure) funcvals) outerenv))
-           (err (lambda (v) (error "Can't break or continue here."))))
-      (begin
-        (call/cc
-         (lambda (return)
-           (Mstate_stmtlist (cadr closure) state return err err)))
-        state))))
+    (begin
+      (Mvalue funccall state return break continue)
+      state)))
 
 
 ;; Return the state after executing any parse tree fragment.
