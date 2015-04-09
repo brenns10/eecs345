@@ -365,6 +365,8 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (return_val (call/cc
-                 (lambda (return)
-                   (Mstate (parser filename) (state-new) return #f #f))))))
+    (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
+                       (state (Mstate (parser filename) (state-new) err err err)))
+                  (call/cc
+                   (lambda (return)
+                     (Mstate_funccall (state-lookup state "main") state return err err)))))))
