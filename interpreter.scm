@@ -66,6 +66,13 @@
      ((equal? var (firstvar layer)) (firstval layer))
      (else (layer-lookup (layer-cdr layer) var)))))
 
+(define layer-member?
+  (lambda (layer var)
+    (cond
+     ((layer-empty? layer) #f)
+     ((equal? var (firstvar layer)) #t)
+     (else (layer-member? (layer-cdr layer) var)))))
+
 (define layer-new-from-arglist
   (lambda (names values)
     (if (!= (length names) (length values))
@@ -91,7 +98,9 @@
 ;; Add a (var value) binding to the state.
 (define state-add
   (lambda (state var value)
-    (cons (add-to-layer (car state) var (box value)) (cdr state))))
+    (if (layer-member? (car state) var)
+        (error "Redeclaring variable.")
+        (cons (add-to-layer (car state) var (box value)) (cdr state)))))
 
 ;; Helper for the following functions
 (define state-get-binding
@@ -121,11 +130,6 @@
       (if (eq? val 'not_found)
           (error "Variable binding not found.")
           (unbox val)))))
-
-;; Return whether the variable is in the state.
-(define state-member?
-  (lambda (state var)
-    (not (eq? (state-get-binding state var) 'not_found))))
 
 ;; Update the binding for a variable in the state, preserving its layer
 ;; location.
@@ -266,22 +270,17 @@
 ;; Return the state after executing a declaration.
 (define Mstate_declare
   (lambda (stmt state return break continue)
-    (cond
-     ((state-member? state (cadr stmt))
-      (error "Redeclaring variable."))
-     ((= 3 (length stmt))
-      ;; This is declaration AND assignment.
-      (state-add (Mstate (caddr stmt) state return break continue)
-                 (cadr stmt)
-                 (Mvalue (caddr stmt) state return break continue)))
-     ;; This is just declaration.
-     (else (state-add state (cadr stmt) 'undefined)))))
+    (if (= 3 (length stmt))
+        ;; This is declaration AND assignment.
+        (state-add (Mstate (caddr stmt) state return break continue)
+                   (cadr stmt)
+                   (Mvalue (caddr stmt) state return break continue))
+        ;; This is just declaration.
+        (state-add state (cadr stmt) 'undefined))))
 
 (define Mstate_assign
   (lambda (stmt state return break continue)
-    (if (state-member? state (cadr stmt))
-          (state-update state (cadr stmt) (Mvalue (caddr stmt) state return break continue))
-          (error "Using variable before declared."))))
+    (state-update state (cadr stmt) (Mvalue (caddr stmt) state return break continue))))
 
 (define Mstate_return
   (lambda (stmt state return break continue)
