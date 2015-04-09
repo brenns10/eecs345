@@ -330,7 +330,7 @@
   (lambda (funcdecl state return break continue)
     (let (fname (cadr funcdecl))
       (state-add fname
-               ((caddr funcdecl) ; Parameter list
+               (list (caddr funcdecl) ; Parameter list
                 (cadddr funcdecl) ; Body
                 (lambda (fname state) ; Function to create the appropriate environment
                   trim-state (fname state)))))))
