@@ -328,13 +328,13 @@
  ; function a(x, y) { return x + y } => (function a (x y) ((return (+ x y)))
 (define Mstate_funcdecl
   (lambda (funcdecl state return break continue)
-    (let (fname (cadr funcdecl))
-      (state-add fname
+    (let ((fname (cadr funcdecl)))
+      (state-add state fname
                (list (caddr funcdecl) ; Parameter list
                 (cadddr funcdecl) ; Body
-                (lambda (fname state) ; Function to create the appropriate environment
-                  trim-state (fname state)))))))
-    
+                (lambda (state) ; Function to create the appropriate environment
+                  (trim-state fname state)))))))
+
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
@@ -353,7 +353,7 @@
                     ((eq? 'break (car stmt)) (break state))
                     ((eq? 'continue (car stmt)) (continue state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
-                    ((eq? 'function (car stmt)) (Mstate_func stmt state return break continue))
+                    ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state return break continue))
                     (else state)))
      (else state))))
 
