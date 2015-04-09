@@ -58,19 +58,6 @@
   (lambda (layer var value)
     (list (cons var (car layer)) (cons value (cadr layer)))))
 
-;; Remove the first binding for var from the layer.
-(define remove-from-layer
-  (lambda (layer var)
-    (cond
-     ;; If the layer is empty, the binding is removed.
-     ((layer-empty? layer) layer)
-     ;; If the first variable in the layer is the variable, return the rest of
-     ;; the layer.
-     ((eq? var (firstvar layer)) (layer-cdr layer))
-     ;; Otherwise, put the current variable and value onto the layer with the
-     (else (add-to-layer (remove-from-layer (layer-cdr layer) var)
-                         (firstvar layer) (firstval layer))))))
-
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
   (lambda (layer var)
