@@ -206,12 +206,24 @@
        (error "Use of undefined variable."))
       (else (state-lookup state expr)))))
 
+(define Mvalue_funccall
+  (lambda (funccall state return break continue)
+    (let* ((closure  (state-lookup state (cadr funccall)))
+           (outerenv ((caddr closure) state))
+           (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
+           (newstate (cons (list (car closure) funcvals) outerenv))
+           (err (lambda (v) (error "Can't break or continue here."))))
+      (call/cc
+       (lambda (return)
+         (Mstate_stmtlist (cadr closure) state return err err))))))
+
 ;; Return the value of any parse tree fragment!
 (define Mvalue
   (lambda (expr state return break continue)
     (cond
      ((list? expr) (cond
                     ((eq? '= (car expr)) (Mvalue_assign expr state return break continue))
+                    ((eq? 'funcall (car expr)) (Mvalue_funccall expr state return break continue))
                     (else (Mvalue_expression expr state return break continue))))
      (else (Mvalue_atom expr state return break continue)))))
 
@@ -384,4 +396,4 @@
                        (state (Mstate (parser filename) (state-new) err err err)))
                   (call/cc
                    (lambda (return)
-                     (Mstate '(funcall main) state return err err)))))))
+                     (Mvalue '(funcall main) state return err err)))))))
