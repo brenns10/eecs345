@@ -66,6 +66,11 @@
      ((equal? var (firstvar layer)) (firstval layer))
      (else (layer-lookup (layer-cdr layer) var)))))
 
+(define layer-new-from-arglist
+  (lambda (names values)
+    (if (!= (length names) (length values))
+        (error "Wrong number of arguments.")
+        (list names (map box values)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
@@ -106,7 +111,7 @@
         (error "Function name not found.")
         (let ((val (layer-lookup (car state) funcname)))
           (if (eq? val 'not_found)
-              (trim-state (cdr state) funcname)
+              (trim-state funcname (cdr state))
               state)))))
 
 ;; Lookup the binding for var in the state.
@@ -211,11 +216,11 @@
     (let* ((closure  (state-lookup state (cadr funccall)))
            (outerenv ((caddr closure) state))
            (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
-           (newstate (cons (list (car closure) funcvals) outerenv))
+           (newstate (cons (layer-new-from-arglist (car closure) funcvals) outerenv))
            (err (lambda (v) (error "Can't break or continue here."))))
       (call/cc
        (lambda (return)
-         (Mstate_stmtlist (cadr closure) state return err err))))))
+         (Mstate_stmtlist (cadr closure) newstate return err err))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
