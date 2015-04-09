@@ -98,6 +98,17 @@
                (state-get-binding (cdr state) var)
                val)))))
 
+;; The state layers only to the depth that the function name was declared.
+; Last element of state is the global, outer layer.
+(define trim-state
+  (lambda (funcname state)
+    (if (null? state)
+        (error "Function name not found.")
+        (let ((val (layer-lookup (car state) funcname)))
+          (if (eq? val 'not_found)
+              (trim-state (cdr state) funcname)
+              state)))))
+
 ;; Lookup the binding for var in the state.
 (define state-lookup
   (lambda (state var)
@@ -312,6 +323,19 @@
          ;; Execute the inner loop:
          (loop (cadr stmt) (caddr stmt) state))))))
 
+;; Binds the name of this function to the closure
+ ; The given funcdecl has the form:
+ ; function a(x, y) { return x + y } => (function a (x y) ((return (+ x y)))
+(define Mstate_funcdecl
+  (lambda (funcdecl state return break continue)
+    (let (fname (cadr funcdecl))
+      (state-add fname
+               (list (caddr funcdecl) ; Parameter list
+                (cadddr funcdecl) ; Body
+                (lambda (fname state) ; Function to create the appropriate environment
+                  trim-state (fname state)))))))
+    
+
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
   (lambda (stmt state return break continue)
@@ -329,6 +353,7 @@
                     ((eq? 'break (car stmt)) (break state))
                     ((eq? 'continue (car stmt)) (continue state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
+                    ((eq? 'function (car stmt)) (Mstate_func stmt state return break continue))
                     (else state)))
      (else state))))
 
