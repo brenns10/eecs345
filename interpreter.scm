@@ -73,12 +73,6 @@
      ((equal? var (firstvar layer)) #t)
      (else (layer-member? (layer-cdr layer) var)))))
 
-(define layer-new-from-arglist
-  (lambda (names values)
-    (if (!= (length names) (length values))
-        (error "Wrong number of arguments.")
-        (list names (map box values)))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -123,13 +117,17 @@
               (trim-state funcname (cdr state))
               state)))))
 
-;; Lookup the binding for var in the state.
-(define state-lookup
+(define state-lookup-box
   (lambda (state var)
     (let ((val (state-get-binding state var)))
       (if (eq? val 'not_found)
           (error "Variable binding not found.")
-          (unbox val)))))
+          val))))
+
+;; Lookup the binding for var in the state.
+(define state-lookup
+  (lambda (state var) (unbox (state-lookup-box state var))))
+
 
 ;; Update the binding for a variable in the state, preserving its layer
 ;; location.
@@ -215,12 +213,26 @@
        (error "Use of undefined variable."))
       (else (state-lookup state expr)))))
 
+(define new-layer-from-arglist
+  (lambda (formal actual state return break continue)
+    (cond
+     ((and (null? formal) (null? actual)) (layer-new))
+     ((or (null? formal) (null? actual)) (error "Incorrect number of args."))
+     ((eq? '& (car formal)) (add-to-layer (new-layer-from-arglist (cddr formal) (cdr actual)
+                                                                  state return break continue)
+                                          (cadr formal)
+                                          (state-lookup-box state (car actual))))
+     (else (add-to-layer (new-layer-from-arglist (cdr formal) (cdr actual)
+                                                 state return break continue)
+                         (car formal) (box (Mvalue (car actual) state return break continue)))))))
+
 (define Mvalue_funccall
   (lambda (funccall state return break continue)
     (let* ((closure  (state-lookup state (cadr funccall)))
            (outerenv ((caddr closure) state))
-           (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
-           (newstate (cons (layer-new-from-arglist (car closure) funcvals) outerenv))
+           (newstate (cons (new-layer-from-arglist (car closure) (cddr funccall)
+                                                   state return break continue)
+                           outerenv))
            (err (lambda (v) (error "Can't break or continue here."))))
       (call/cc
        (lambda (return)
