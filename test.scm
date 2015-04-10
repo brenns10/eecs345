@@ -1,5 +1,3 @@
-(load "interpreter.scm")
-
 (define testnum car)
 (define expect cadr)
 
@@ -32,7 +30,21 @@
     (map (lambda (v) (run-test group (testnum v) (expect v))) list)
     'tests_complete))
 
+(define init
+  (lambda (type)
+    (begin
+      (load "interpreter.scm")
+      (if (equal? type "simple")
+          (begin
+            (load "simpleParser.scm") ; Overwrite the bindings of functionParser
+            (load "simpleInterpreter.scm")) ; Old interpreter loop
+          #t)
+      #t)))
+
 (define test
   (lambda (group)
-    (run-tests group (load (string-append group "/spec.scm")))))
+    (let ((spec (load (string-append group "/spec.scm"))))
+      (begin
+        (init (car spec))
+        (run-tests group (cdr spec))))))
 
