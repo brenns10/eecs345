@@ -11,15 +11,18 @@ Creating Test Groups
 
 So, the test runner works on the concept that test groups are folders, and tests
 are files.  Inside a test group folder (like `tests_pt1`) there is a file named
-`spec.scm`.  This file contains a list of pairs -- test number and return value.
-The test runner just runs each test in that spec, and checks that it returns the
-same value.
+`spec.scm`.  This file contains a list.  The list has the following:
 
-To check for errors, the test runner uses the atom `'error`.  So put that as
-your return value if you expect an error.
+* The car is a string, either `"simple"` for simple interpreter, or `"function"`
+  for function interpreter.
+* The cdr is a list of pairs:
+    * The car of the pair is the test number.
+    * The cadr of the pair is the expected return value - a number, `true`,
+    `false`, or `error`.
 
-If you have any questions about the test group/runner operation, ask me or look
-at the existing tests.
+The test runner will run each test and compare the output to the expected
+output.  If you have any questions about the test group/runner operation, ask me
+or look at the existing tests.
 
 
 Running Test Groups
