@@ -32,14 +32,13 @@ workflow, and it's very useful!
 
 **PART 3: Functions**
 
-- [ ] Create `Mstate` for function declarations.
+- [x] Create `Mstate` for function declarations.
     - This involves creating a closure.
     - It needs to work in global scope, or inside another function.
-- [ ] Create `Mstate` and `Mvalue` for function calls.
+- [x] Create `Mstate` and `Mvalue` for function calls.
     - This should be substantially easier now that we're using boxes.
-- [ ] Rework the overall parser to read declarations, then call `main`.
-- [ ] Make sure functions with no `return` statement still end up calling the
-  `return` continuation!
+- [x] Rework the overall parser to read declarations, then call `main`.
+- [ ] (Optional, but recommended) Implement call-by-reference parameters.
 
 Note that since we have switched to boxes, we can stop worrying about doing
 anything special for side effects.  They just work!

@@ -66,6 +66,18 @@
      ((equal? var (firstvar layer)) (firstval layer))
      (else (layer-lookup (layer-cdr layer) var)))))
 
+(define layer-member?
+  (lambda (layer var)
+    (cond
+     ((layer-empty? layer) #f)
+     ((equal? var (firstvar layer)) #t)
+     (else (layer-member? (layer-cdr layer) var)))))
+
+(define layer-new-from-arglist
+  (lambda (names values)
+    (if (!= (length names) (length values))
+        (error "Wrong number of arguments.")
+        (list names (map box values)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
@@ -86,7 +98,9 @@
 ;; Add a (var value) binding to the state.
 (define state-add
   (lambda (state var value)
-    (cons (add-to-layer (car state) var (box value)) (cdr state))))
+    (if (layer-member? (car state) var)
+        (error "Redeclaring variable.")
+        (cons (add-to-layer (car state) var (box value)) (cdr state)))))
 
 ;; Helper for the following functions
 (define state-get-binding
@@ -106,7 +120,7 @@
         (error "Function name not found.")
         (let ((val (layer-lookup (car state) funcname)))
           (if (eq? val 'not_found)
-              (trim-state (cdr state) funcname)
+              (trim-state funcname (cdr state))
               state)))))
 
 ;; Lookup the binding for var in the state.
@@ -116,11 +130,6 @@
       (if (eq? val 'not_found)
           (error "Variable binding not found.")
           (unbox val)))))
-
-;; Return whether the variable is in the state.
-(define state-member?
-  (lambda (state var)
-    (not (eq? (state-get-binding state var) 'not_found))))
 
 ;; Update the binding for a variable in the state, preserving its layer
 ;; location.
@@ -206,12 +215,24 @@
        (error "Use of undefined variable."))
       (else (state-lookup state expr)))))
 
+(define Mvalue_funccall
+  (lambda (funccall state return break continue)
+    (let* ((closure  (state-lookup state (cadr funccall)))
+           (outerenv ((caddr closure) state))
+           (funcvals (map (lambda (v) (Mvalue v state return break continue)) (cddr funccall)))
+           (newstate (cons (layer-new-from-arglist (car closure) funcvals) outerenv))
+           (err (lambda (v) (error "Can't break or continue here."))))
+      (call/cc
+       (lambda (return)
+         (Mstate_stmtlist (cadr closure) newstate return err err))))))
+
 ;; Return the value of any parse tree fragment!
 (define Mvalue
   (lambda (expr state return break continue)
     (cond
      ((list? expr) (cond
                     ((eq? '= (car expr)) (Mvalue_assign expr state return break continue))
+                    ((eq? 'funcall (car expr)) (Mvalue_funccall expr state return break continue))
                     (else (Mvalue_expression expr state return break continue))))
      (else (Mvalue_atom expr state return break continue)))))
 
@@ -249,22 +270,17 @@
 ;; Return the state after executing a declaration.
 (define Mstate_declare
   (lambda (stmt state return break continue)
-    (cond
-     ((state-member? state (cadr stmt))
-      (error "Redeclaring variable."))
-     ((= 3 (length stmt))
-      ;; This is declaration AND assignment.
-      (state-add (Mstate (caddr stmt) state return break continue)
-                 (cadr stmt)
-                 (Mvalue (caddr stmt) state return break continue)))
-     ;; This is just declaration.
-     (else (state-add state (cadr stmt) 'undefined)))))
+    (if (= 3 (length stmt))
+        ;; This is declaration AND assignment.
+        (state-add (Mstate (caddr stmt) state return break continue)
+                   (cadr stmt)
+                   (Mvalue (caddr stmt) state return break continue))
+        ;; This is just declaration.
+        (state-add state (cadr stmt) 'undefined))))
 
 (define Mstate_assign
   (lambda (stmt state return break continue)
-    (if (state-member? state (cadr stmt))
-          (state-update state (cadr stmt) (Mvalue (caddr stmt) state return break continue))
-          (error "Using variable before declared."))))
+    (state-update state (cadr stmt) (Mvalue (caddr stmt) state return break continue))))
 
 (define Mstate_return
   (lambda (stmt state return break continue)
@@ -298,7 +314,7 @@
                                    ;; Modify the break and continue
                                    ;; continuations so that they remove the
                                    ;; correct number of layers when they fire.
-                                   (lambda (s) (return (remove-layer s)))
+                                   return
                                    (lambda (s) (break (remove-layer s)))
                                    (lambda (s) (continue (remove-layer s)))))))
 
@@ -330,10 +346,17 @@
   (lambda (funcdecl state return break continue)
     (let ((fname (cadr funcdecl)))
       (state-add state fname
-               (list (caddr funcdecl) ; Parameter list
-                (cadddr funcdecl) ; Body
-                (lambda (state) ; Function to create the appropriate environment
-                  (trim-state fname state)))))))
+                 (list (caddr funcdecl) ; Parameter list
+                       (cadddr funcdecl) ; Body
+                       (lambda (state) ; Function to create the appropriate environment
+                         (trim-state fname state)))))))
+
+;; Get the state for a function call.
+(define Mstate_funccall
+  (lambda (funccall state return break continue)
+    (begin
+      (Mvalue funccall state return break continue)
+      state)))
 
 
 ;; Return the state after executing any parse tree fragment.
@@ -354,6 +377,7 @@
                     ((eq? 'continue (car stmt)) (continue state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
                     ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state return break continue))
+                    ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state return break continue))
                     (else state)))
      (else state))))
 
@@ -365,6 +389,8 @@
 ;; Interpret from the given filename, and return its value.
 (define interpret
   (lambda (filename)
-    (return_val (call/cc
-                 (lambda (return)
-                   (Mstate (parser filename) (state-new) return #f #f))))))
+    (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
+                       (state (Mstate (parser filename) (state-new) err err err)))
+                  (call/cc
+                   (lambda (return)
+                     (Mvalue '(funcall main) state return err err)))))))
