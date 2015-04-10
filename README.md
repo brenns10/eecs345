@@ -38,7 +38,7 @@ workflow, and it's very useful!
 - [x] Create `Mstate` and `Mvalue` for function calls.
     - This should be substantially easier now that we're using boxes.
 - [x] Rework the overall parser to read declarations, then call `main`.
-- [ ] (Optional, but recommended) Implement call-by-reference parameters.
+- [ ] *Optional, but recommended:* Implement call-by-reference parameters.
 
 Note that since we have switched to boxes, we can stop worrying about doing
 anything special for side effects.  They just work!
