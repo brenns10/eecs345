@@ -30,15 +30,37 @@ workflow, and it's very useful!
 
 **PART 2 COMPLETE!**
 
-**PART 3: Functions**
+**PART 3 COMPLETE!**
 
-- [x] Create `Mstate` for function declarations.
-    - This involves creating a closure.
-    - It needs to work in global scope, or inside another function.
-- [x] Create `Mstate` and `Mvalue` for function calls.
-    - This should be substantially easier now that we're using boxes.
-- [x] Rework the overall parser to read declarations, then call `main`.
-- [ ] *Optional, but recommended:* Implement call-by-reference parameters.
+**PART 4: Classes :(**
 
-Note that since we have switched to boxes, we can stop worrying about doing
-anything special for side effects.  They just work!
+- [ ] Use an environment that separates the names from the values, and have the
+  values stored in reverse order, using the index of the name to look up the
+  value. (This will be needed in part 5.)
+- [ ] Create helper functions to create a new class and instance (will be needed
+  for part 5) and to access the portions of a class and instance.
+- [ ] All M_state and M_value functions will need to pass parameters for the
+  class (the compile-time type) and instance ("this" - needed for part 5).
+- [ ] Change the top level interpreter code that you used in part 3 to return a
+  class instead of returning an environment.
+- [ ] Change the top level interpreter code that you wrote for part 3 to expect
+  static and non-static declarations for variables and functions.
+- [ ] Update your code that interprets a function definition to add a new
+  function to the closure that looks up the function's class in the environment.
+- [ ] Create a new global level for the interpreter that reads a list of class
+  definitions, and stores each class with its definition in the environment.
+- [ ] Create a function that takes a variable, a class, and an instance, and
+  checks if the variable is in the list of class or instance variables and
+  returns its value.
+- [ ] Create a function that takes a variable, and environment, a class, and an
+  instance, if the variable is in the environment, look it up, otherwise look in
+  the class and instance variables. (Why both this function and the one above
+  it? To deal with when you have a dot and when you don't.)
+- [ ] Create a pair of functions (or a single function that returns a pair) that
+  takes the left hand side of a dot expression and returns the class and the
+  instance of the left hand side.
+- [ ] Update the code that evaluates a function call to deal with objects and
+  classes. (Follow the denotational semantics sketched in lecture.)
+- [ ] Update the code that interprets an assignment statement so that it looks
+  for the variable in the environment, class and instance variables.
+- [ ] Create a new interpret function.
