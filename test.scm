@@ -34,12 +34,15 @@
   (lambda (type)
     (begin
       (load "interpreter.scm")
-      (if (equal? type "simple")
-          (begin
-            (load "simpleParser.scm") ; Overwrite the bindings of functionParser
-            (load "simpleInterpreter.scm")) ; Old interpreter loop
-          #t)
-      #t)))
+      (cond
+       ((equal? type "simple")
+        (begin
+          (load "simpleParser.scm") ; Overwrite the bindings of functionParser
+          (load "simpleInterpreter.scm")) ; Old interpreter loop
+        #t)
+       ((equal? type "function")
+        (load "functionParser.scm"))
+       (else #t)))))
 
 (define test
   (lambda (group)
