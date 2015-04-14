@@ -15,10 +15,12 @@ are files.  Inside a test group folder (like `tests_pt1`) there is a file named
 
 * The car is a string, either `"simple"` for simple interpreter, or `"function"`
   for function interpreter.
-* The cdr is a list of pairs:
-    * The car of the pair is the test number.
-    * The cadr of the pair is the expected return value - a number, `true`,
-    `false`, or `error`.
+* The cdr is a list of lists:
+    * The car of the list is the test number.
+    * For tests that don't involve classes, the cadr of the list is the expected
+      return value - a number, `true`, `false`, or `error`.
+    * For tests that involve classes, the cdr of the list is a list of (class,
+      expected value) pairs.
 
 The test runner will run each test and compare the output to the expected
 output.  If you have any questions about the test group/runner operation, ask me
