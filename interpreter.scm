@@ -314,13 +314,13 @@
 
 (define dot-inst-class
   (lambda (lhs state ctx)
-    (let ((lookup (unbox (lookup-var lhs state (ctx-class ctx) (ctx-inst ctx)))))
+    (let ((lookup (lookup-var lhs state (ctx-class ctx) (ctx-inst ctx))))
       (cond
        ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
        ((eq? lhs 'super) (error "Super bad.  No super."))
        ((eq? 'not_found lookup) (error "Not found."))
-       ((eq? 'class (car lookup)) (list 'null lookup))
-       ((eq? 'inst (car lookup)) (list lookup (inst-class lookup)))
+       ((eq? 'class (car (unbox lookup))) (list 'null (unbox lookup)))
+       ((eq? 'inst (car (unbox lookup))) (list (unbox lookup) (inst-class (unbox lookup))))
        ((eq? (car lhs) 'funcall)
         (let ((result (Mvalue_funccall lhs state ctx)))
           (list result (inst-class result))))))))
