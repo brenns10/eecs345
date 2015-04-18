@@ -230,7 +230,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Context Functions (a context contains all the damn continuations)
-;; => The context is a list: '(return break continue)
+;; => The context is a list: '(return break continue class inst)
 ;; => I made it like this so we don't have to change function signatures every
 ;;    damn time!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -242,6 +242,14 @@
 (define ctx-return car)
 (define ctx-break cadr)
 (define ctx-continue caddr)
+(define ctx-class cadddr)
+(define ctx-inst (lambda (l) (list-ref l 4)))
+
+(define list-set
+  (lambda (list idx val)
+    (if (= 0 idx)
+        (cons val (cdr list))
+        (cons (car list) (list-set (cdr list) (- idx 1) val)))))
 
 ;; The functions for modifying items in the continuation.
 (define ctx-return-set
@@ -250,11 +258,19 @@
 
 (define ctx-break-set
   (lambda (ctx break)
-    (list (ctx-return ctx) break (ctx-break ctx))))
+    (list-set ctx 1 break)))
 
 (define ctx-continue-set
   (lambda (ctx continue)
-    (list (ctx-return ctx) (ctx-break ctx) continue)))
+    (list-set ctx 2 continue)))
+
+(define ctx-class-set
+  (lambda (ctx class)
+    (list-set ctx 3 class)))
+
+(define ctx-inst-set
+  (lambda (ctx class)
+    (list-set ctx 4 inst)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
@@ -351,7 +367,12 @@
            (err (lambda (v) (error "Can't break or continue here."))))
       (call/cc
        (lambda (return)
-         (Mstate_stmtlist (cadr closure) newstate (ctx-new return err err)))))))
+         (Mstate_stmtlist (cadr closure) newstate (ctx-return-set
+                                                   (ctx-break-set
+                                                    (ctx-continue-set
+                                                     ctx err)
+                                                    err)
+                                                   return)))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -441,9 +462,10 @@
                       ;; Modify the break and continue
                       ;; continuations so that they remove the
                       ;; correct number of layers when they fire.
-                      (ctx-new
-                       (ctx-return ctx)
-                       (lambda (s) ((ctx-break ctx) (remove-layer s)))
+                      (ctx-continue-set
+                       (ctx-break-set
+                        ctx
+                        (lambda (s) ((ctx-break ctx) (remove-layer s))))
                        (lambda (s) ((ctx-continue ctx) (remove-layer s))))))))
 
 ;; Executes a while statement.
@@ -461,9 +483,9 @@
                               ;; Create a continue continuation
                               (call/cc (lambda (continue_new)
                                          (Mstate body state
-                                                 (ctx-new (ctx-return ctx)
-                                                          break_new
-                                                          continue_new)))))
+                                                 (ctx-continue-set
+                                                  (ctx-break-set ctx break_new)
+                                                  continue_new)))))
                         state))))
          ;; Execute the inner loop:
          (loop (cadr stmt) (caddr stmt) state))))))
@@ -517,7 +539,7 @@
 (define interpret
   (lambda (filename)
     (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
-                       (state (Mstate (parser filename) (state-new) (ctx-new err err err))))
+                       (state (Mstate (parser filename) (state-new) (ctx-new err err err 'null 'null))))
                   (call/cc
                    (lambda (return)
-                     (Mvalue '(funcall main) state (ctx-new return err err))))))))
+                     (Mvalue '(funcall main) state (ctx-new return err err 'null 'null))))))))

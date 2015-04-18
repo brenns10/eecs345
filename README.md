@@ -39,7 +39,7 @@ workflow, and it's very useful!
   value. (This will be needed in part 5.)
 - [x] Create helper functions to create a new class and instance (will be needed
   for part 5) and to access the portions of a class and instance.
-- [ ] All M_state and M_value functions will need to pass parameters for the
+- [x] All M_state and M_value functions will need to pass parameters for the
   class (the compile-time type) and instance ("this" - needed for part 5).
 - [ ] Change the top level interpreter code that you used in part 3 to return a
   class instead of returning an environment.
