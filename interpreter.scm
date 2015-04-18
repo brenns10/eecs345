@@ -40,6 +40,12 @@
            (else ((f f) (cdr list) item (lambda (v) (return (+ 1 v)))))))))
      list item (lambda (v) v))))
 
+(define list-set
+  (lambda (list idx val)
+    (if (= 0 idx)
+        (cons val (cdr list))
+        (cons (car list) (list-set (cdr list) (- idx 1) val)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer/Environment functions:  '((var_name1 var_name2) (var_value1 var_value2))
@@ -77,7 +83,7 @@
   (lambda (layer var value)
     (list (cons var (car layer)) (append (cadr layer) (list value)))))
 (define env-add
-  (lambda (env var value) (add-to-layer (env var (box value)))))
+  (lambda (env var value) (add-to-layer env var (box value))))
 
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
@@ -175,40 +181,33 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Class functions: A class is a list containing the following (in order):
 ;; - Parent class, or 'null.
+;; - Class name
 ;; - Class field environment.
 ;; - Method environment.
 ;; - Instance field names.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define class-new
-  (lambda (parent)
-    (list parent (env-new) (env-new) '())))
+  (lambda (parent name)
+    (list parent name (env-new) (env-new) '())))
 
 (define class-parent car)
-(define class-fields cadr)
-(define class-methods caddr)
-(define class-instance-names cadddr)
+(define class-name cadr)
+(define class-fields caddr)
+(define class-methods cadddr)
+(define class-instance-names (lambda (l) (list-ref l 4)))
 
 (define class-fields-set
   (lambda (cls fields)
-    (list (class-parent cls)
-          fields
-          (class-methods cls)
-          (class-instance-names cls))))
+    (list-set cls 2 fields)))
 
 (define class-methods-set
   (lambda (cls methods)
-    (list (class-parent cls)
-          (class-fields cls)
-          methods
-          (class-instance-names cls))))
+    (list-set cls 3 methods)))
 
 (define class-instance-names-set
   (lambda (cls instance-names)
-    (list (class-parent cls)
-          (class-fields cls)
-          (class-methods cls)
-          instance-names)))
+    (list-set cls 4 instance-names)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Instance functions: An instance is a list containing:
@@ -244,12 +243,6 @@
 (define ctx-continue caddr)
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
-
-(define list-set
-  (lambda (list idx val)
-    (if (= 0 idx)
-        (cons val (cdr list))
-        (cons (car list) (list-set (cdr list) (- idx 1) val)))))
 
 ;; The functions for modifying items in the continuation.
 (define ctx-return-set
@@ -500,7 +493,28 @@
                  (list (caddr funcdecl) ; Parameter list
                        (cadddr funcdecl) ; Body
                        (lambda (state) ; Function to create the appropriate environment
-                         (trim-state fname state)))))))
+                         (trim-state fname state))
+                       (lambda (state) ; Function to get this function's class
+                         (state-lookup state (class-name (ctx-class)))))))))
+
+(define Mclass_staticfuncdecl
+  (lambda (funcdecl state ctx)
+    (let* ((fname (cadr funcdecl))
+           (cls (ctx-class ctx))
+           (cname (class-name cls)))
+      (class-methods-set
+       cls
+       (env-add (class-methods cls)
+                fname
+                (list (caddr funcdecl) ; Parameter list
+                      (cadddr funcdecl) ; Body
+                      (lambda (state) ; Function to create environment.
+                        (let ((class (state-lookup state cname)))
+                          (cons (class-methods class)
+                                (cons (class-fields class)
+                                      (trim-state cname state)))))
+                      (lambda (state)
+                        (state-lookup state cname))))))))
 
 ;; Get the state for a function call.
 (define Mstate_funccall
@@ -508,7 +522,6 @@
     (begin
       (Mvalue funccall state ctx)
       state)))
-
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
@@ -530,6 +543,43 @@
                     (else state)))
      (else state))))
 
+;; This is like Mstate, but for within classes.
+(define Mclass
+  (lambda (stmt state ctx)
+    (cond
+     ((null? stmt) (ctx-class ctx))
+     ((list? stmt) (cond
+                    ((eq? 'static-function (car stmt)) (Mclass_staticfuncdecl stmt state ctx))
+                    ((eq? 'static-var (car stmt)) (Mclass_staticvar stmt state ctx))
+                    (else (error "You can only declare static functions and variables in a class."))))
+     (else (ctx-class ctx)))))
+
+(define Mclass_stmtlist
+  (lambda (block state ctx)
+    (if (null? block)
+        (ctx-class ctx)
+        (Mclass_stmtlist (cdr block)
+                         state
+                         (Mclass (car block) state ctx)))))
+
+(define Mstate_class
+  (lambda (stmt state ctx)
+    (let* ((name (cadr stmt))
+           (extends (caddr stmt))
+           (parent (if (null? extends) 'null (state-lookup state (cadr extends))))
+           (body (cadddr stmt))
+           (class (Mclass_stmtlist body state (ctx-class-set ctx (class-new parent name)))))
+      (state-add state name class))))
+
+
+(define outer-interpreter
+  (lambda (block state ctx)
+    (cond
+     ((null? block) state)
+     ((eq? (car (car block)) 'class)
+      (outer-interpreter (cdr block) (Mstate_class (car block) state ctx) ctx))
+     (else (error "You may only declare classes in the global scope.")))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Overall interpreter functions
@@ -537,9 +587,9 @@
 
 ;; Interpret from the given filename, and return its value.
 (define interpret
-  (lambda (filename)
+  (lambda (filename class)
     (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
-                       (state (Mstate (parser filename) (state-new) (ctx-new err err err 'null 'null))))
+                       (state (outer-interpreter (parser filename) (state-new) (ctx-new err err err 'null 'null))))
                   (call/cc
                    (lambda (return)
-                     (Mvalue '(funcall main) state (ctx-new return err err 'null 'null))))))))
+                     (Mvalue (list 'funcall (list 'dot class 'main)) state (ctx-new return err err class 'null))))))))
