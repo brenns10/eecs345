@@ -34,7 +34,7 @@ workflow, and it's very useful!
 
 **PART 4: Classes :(**
 
-- [ ] Use an environment that separates the names from the values, and have the
+- [x] Use an environment that separates the names from the values, and have the
   values stored in reverse order, using the index of the name to look up the
   value. (This will be needed in part 5.)
 - [ ] Create helper functions to create a new class and instance (will be needed
