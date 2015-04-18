@@ -5,4 +5,4 @@
     (let ((err (lambda (v) (error "You can't break or continue here."))))
       (return_val (call/cc
                    (lambda (return)
-                     (Mstate (parser filename) (state-new) return err err)))))))
+                     (Mstate (parser filename) (state-new) (ctx-new return err err))))))))

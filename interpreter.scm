@@ -142,6 +142,34 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Context Functions (a context contains all the damn continuations)
+;; => The context is a list: '(return break continue)
+;; => I made it like this so we don't have to change function signatures every
+;;    damn time!
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; New continuation - contains all caller-defined values
+(define ctx-new list)
+
+;; The functions for accessing items in the continuation.
+(define ctx-return car)
+(define ctx-break cadr)
+(define ctx-continue caddr)
+
+;; The functions for modifying items in the continuation.
+(define ctx-return-set
+  (lambda (ctx return)
+    (cons return (cdr ctx))))
+
+(define ctx-break-set
+  (lambda (ctx break)
+    (list (ctx-return ctx) break (ctx-break ctx))))
+
+(define ctx-continue-set
+  (lambda (ctx continue)
+    (list (ctx-return ctx) (ctx-break ctx) continue)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -185,26 +213,26 @@
 
 ;; Returns the value of an arithmetic expression.
 (define Mvalue_expression
-  (lambda (expr state return break continue)
+  (lambda (expr state ctx)
     (if (= 3 (length expr))
         ;; A binary operator:
         ((opfunc-binary (operator expr))
-         (Mvalue (leftoperand expr) state return break continue)
-         (Mvalue (rightoperand expr) state return break continue))
+         (Mvalue (leftoperand expr) state ctx)
+         (Mvalue (rightoperand expr) state ctx))
         ;; A unary operator:
         ((opfunc-unary (operator expr))
-         (Mvalue (leftoperand expr) state return break continue)))))
+         (Mvalue (leftoperand expr) state ctx)))))
 
 ;; Returns the value of a statement.  This is only currently implemented for
 ;; assignment statements (because they're kinda expressions too).
 (define Mvalue_assign
-  (lambda (expr state return break continue)
-      (state-lookup (Mstate_assign expr state return break continue) (cadr expr))))
+  (lambda (expr state ctx)
+      (state-lookup (Mstate_assign expr state ctx) (cadr expr))))
 
 ;; Returns the value of a parse tree fragment which is just an atom (could be
 ;; either a variable or literal).
 (define Mvalue_atom
-  (lambda (expr state return break continue)
+  (lambda (expr state ctx)
     (cond
       ((or (boolean? expr) (number? expr)) expr)
       ((eq? expr 'true) #t)
@@ -214,39 +242,39 @@
       (else (state-lookup state expr)))))
 
 (define new-layer-from-arglist
-  (lambda (formal actual state return break continue)
+  (lambda (formal actual state ctx)
     (cond
      ((and (null? formal) (null? actual)) (layer-new))
      ((or (null? formal) (null? actual)) (error "Incorrect number of args."))
      ((eq? '& (car formal)) (add-to-layer (new-layer-from-arglist (cddr formal) (cdr actual)
-                                                                  state return break continue)
+                                                                  state ctx)
                                           (cadr formal)
                                           (state-lookup-box state (car actual))))
      (else (add-to-layer (new-layer-from-arglist (cdr formal) (cdr actual)
-                                                 state return break continue)
-                         (car formal) (box (Mvalue (car actual) state return break continue)))))))
+                                                 state ctx)
+                         (car formal) (box (Mvalue (car actual) state ctx)))))))
 
 (define Mvalue_funccall
-  (lambda (funccall state return break continue)
+  (lambda (funccall state ctx)
     (let* ((closure  (state-lookup state (cadr funccall)))
            (outerenv ((caddr closure) state))
            (newstate (cons (new-layer-from-arglist (car closure) (cddr funccall)
-                                                   state return break continue)
+                                                   state ctx)
                            outerenv))
            (err (lambda (v) (error "Can't break or continue here."))))
       (call/cc
        (lambda (return)
-         (Mstate_stmtlist (cadr closure) newstate return err err))))))
+         (Mstate_stmtlist (cadr closure) newstate (ctx-new return err err)))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
-  (lambda (expr state return break continue)
+  (lambda (expr state ctx)
     (cond
      ((list? expr) (cond
-                    ((eq? '= (car expr)) (Mvalue_assign expr state return break continue))
-                    ((eq? 'funcall (car expr)) (Mvalue_funccall expr state return break continue))
-                    (else (Mvalue_expression expr state return break continue))))
-     (else (Mvalue_atom expr state return break continue)))))
+                    ((eq? '= (car expr)) (Mvalue_assign expr state ctx))
+                    ((eq? 'funcall (car expr)) (Mvalue_funccall expr state ctx))
+                    (else (Mvalue_expression expr state ctx))))
+     (else (Mvalue_atom expr state ctx)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -258,8 +286,8 @@
 ;; the sake of abstraction we're keeping a separate Mboolean function, but for
 ;; the sake of non-redundant code, we're not repeating the code in Mvalue.
 (define Mboolean
-  (lambda (expr state return break continue)
-    (Mvalue expr state return break continue)))
+  (lambda (expr state ctx)
+    (Mvalue expr state ctx)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -268,35 +296,35 @@
 
 ;; Return the state after executing an if statement.
 (define Mstate_if
-  (lambda (stmt state return break continue)
+  (lambda (stmt state ctx)
     (if (= 3 (length stmt))
           ; IF statement
-          (if (Mboolean (list-ref stmt 1) state return break continue)
-              (Mstate (list-ref stmt 2) state return break continue)
+          (if (Mboolean (list-ref stmt 1) state ctx)
+              (Mstate (list-ref stmt 2) state ctx)
               state)
           ; ELSE IF
-          (if (Mboolean (list-ref stmt 1) state return break continue)
-              (Mstate (list-ref stmt 2) state return break continue)
-              (Mstate (list-ref stmt 3) state return break continue)))))
+          (if (Mboolean (list-ref stmt 1) state ctx)
+              (Mstate (list-ref stmt 2) state ctx)
+              (Mstate (list-ref stmt 3) state ctx)))))
 
 ;; Return the state after executing a declaration.
 (define Mstate_declare
-  (lambda (stmt state return break continue)
+  (lambda (stmt state ctx)
     (if (= 3 (length stmt))
         ;; This is declaration AND assignment.
-        (state-add (Mstate (caddr stmt) state return break continue)
+        (state-add (Mstate (caddr stmt) state ctx)
                    (cadr stmt)
-                   (Mvalue (caddr stmt) state return break continue))
+                   (Mvalue (caddr stmt) state ctx))
         ;; This is just declaration.
         (state-add state (cadr stmt) 'undefined))))
 
 (define Mstate_assign
-  (lambda (stmt state return break continue)
-    (state-update state (cadr stmt) (Mvalue (caddr stmt) state return break continue))))
+  (lambda (stmt state ctx)
+    (state-update state (cadr stmt) (Mvalue (caddr stmt) state ctx))))
 
 (define Mstate_return
-  (lambda (stmt state return break continue)
-    (return  (Mvalue (cadr stmt) state return break continue))))
+  (lambda (stmt state ctx)
+    ((ctx-return ctx) (Mvalue (cadr stmt) state ctx))))
 
 ;; Helper method to handle the fact that return statements should return
 ;; the atoms 'true or 'false rather than #t and #f
@@ -310,43 +338,45 @@
 ;; Execute a list of statements.  This doesn't add a layer, it just executes the
 ;; statements in order.
 (define Mstate_stmtlist
-  (lambda (block state return break continue)
+  (lambda (block state ctx)
     (if (null? block)
         state
         (Mstate_stmtlist (cdr block)
-                         (Mstate (car block) state return
-                                 break continue)
-                         return break continue))))
+                         (Mstate (car block) state ctx)
+                         ctx))))
 
 ;; Execute a block of statements.  This is different from a statement list in
 ;; that it adds a layer to the state, then removes it.
 (define Mstate_block
-  (lambda (block state return break continue)
-    (remove-layer (Mstate_stmtlist (cdr block) (add-layer state)
-                                   ;; Modify the break and continue
-                                   ;; continuations so that they remove the
-                                   ;; correct number of layers when they fire.
-                                   return
-                                   (lambda (s) (break (remove-layer s)))
-                                   (lambda (s) (continue (remove-layer s)))))))
+  (lambda (block state ctx)
+    (remove-layer
+     (Mstate_stmtlist (cdr block) (add-layer state)
+                      ;; Modify the break and continue
+                      ;; continuations so that they remove the
+                      ;; correct number of layers when they fire.
+                      (ctx-new
+                       (ctx-return ctx)
+                       (lambda (s) ((ctx-break ctx) (remove-layer s)))
+                       (lambda (s) ((ctx-continue ctx) (remove-layer s))))))))
 
 ;; Executes a while statement.
 (define Mstate_while
-  (lambda (stmt state return break continue)
+  (lambda (stmt state ctx)
     ;; Create the new break continuation.
     (call/cc
      (lambda (break_new)
        (letrec
            ((loop (lambda (condition body state)
-                    (if (Mboolean condition state return break_new continue)
+                    (if (Mboolean condition state (ctx-break-set ctx break_new))
                         ;; If the loop condition is true, tail recursively loop
                         ;; again.
                         (loop condition body
                               ;; Create a continue continuation
                               (call/cc (lambda (continue_new)
                                          (Mstate body state
-                                                 return break_new
-                                                 continue_new))))
+                                                 (ctx-new (ctx-return ctx)
+                                                          break_new
+                                                          continue_new)))))
                         state))))
          ;; Execute the inner loop:
          (loop (cadr stmt) (caddr stmt) state))))))
@@ -355,7 +385,7 @@
  ; The given funcdecl has the form:
  ; function a(x, y) { return x + y } => (function a (x y) ((return (+ x y)))
 (define Mstate_funcdecl
-  (lambda (funcdecl state return break continue)
+  (lambda (funcdecl state ctx)
     (let ((fname (cadr funcdecl)))
       (state-add state fname
                  (list (caddr funcdecl) ; Parameter list
@@ -365,31 +395,29 @@
 
 ;; Get the state for a function call.
 (define Mstate_funccall
-  (lambda (funccall state return break continue)
+  (lambda (funccall state ctx)
     (begin
-      (Mvalue funccall state return break continue)
+      (Mvalue funccall state ctx)
       state)))
 
 
 ;; Return the state after executing any parse tree fragment.
 (define Mstate
-  (lambda (stmt state return break continue)
+  (lambda (stmt state ctx)
     (cond
      ((null? stmt) state)
      ((list? stmt) (cond
-                    ((list? (car stmt)) (Mstate_stmtlist stmt state return break continue))
-                    ((eq? 'begin (car stmt)) (Mstate_block stmt state return break continue))
-                    ((eq? 'var (car stmt)) (Mstate_declare stmt state return
-                                                           break continue))
-                    ((eq? '= (car stmt)) (Mstate_assign stmt state return
-                                                        break continue))
-                    ((eq? 'if (car stmt)) (Mstate_if stmt state return break continue))
-                    ((eq? 'return (car stmt)) (Mstate_return stmt state return break continue))
-                    ((eq? 'break (car stmt)) (break state))
-                    ((eq? 'continue (car stmt)) (continue state))
-                    ((eq? 'while (car stmt)) (Mstate_while stmt state return break continue))
-                    ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state return break continue))
-                    ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state return break continue))
+                    ((list? (car stmt)) (Mstate_stmtlist stmt state ctx))
+                    ((eq? 'begin (car stmt)) (Mstate_block stmt state ctx))
+                    ((eq? 'var (car stmt)) (Mstate_declare stmt state ctx))
+                    ((eq? '= (car stmt)) (Mstate_assign stmt state ctx))
+                    ((eq? 'if (car stmt)) (Mstate_if stmt state ctx))
+                    ((eq? 'return (car stmt)) (Mstate_return stmt state ctx))
+                    ((eq? 'break (car stmt)) ((ctx-break ctx) state))
+                    ((eq? 'continue (car stmt)) ((ctx-continue ctx) state))
+                    ((eq? 'while (car stmt)) (Mstate_while stmt state ctx))
+                    ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state ctx))
+                    ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state ctx))
                     (else state)))
      (else state))))
 
@@ -402,7 +430,7 @@
 (define interpret
   (lambda (filename)
     (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
-                       (state (Mstate (parser filename) (state-new) err err err)))
+                       (state (Mstate (parser filename) (state-new) (ctx-new err err err))))
                   (call/cc
                    (lambda (return)
-                     (Mvalue '(funcall main) state return err err)))))))
+                     (Mvalue '(funcall main) state (ctx-new return err err))))))))
