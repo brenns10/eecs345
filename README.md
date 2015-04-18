@@ -41,13 +41,15 @@ workflow, and it's very useful!
   for part 5) and to access the portions of a class and instance.
 - [x] All M_state and M_value functions will need to pass parameters for the
   class (the compile-time type) and instance ("this" - needed for part 5).
-- [ ] Change the top level interpreter code that you used in part 3 to return a
+- [x] Change the top level interpreter code that you used in part 3 to return a
   class instead of returning an environment.
-- [ ] Change the top level interpreter code that you wrote for part 3 to expect
-  static and non-static declarations for variables and functions.
-- [ ] Update your code that interprets a function definition to add a new
+- [ ] *Partially done:* Change the top level interpreter code that you wrote for
+  part 3 to expect static and non-static declarations for variables and
+  functions. (*Still need to accept non-static declarations, but that may wait
+  till next assignment.*).
+- [x] Update your code that interprets a function definition to add a new
   function to the closure that looks up the function's class in the environment.
-- [ ] Create a new global level for the interpreter that reads a list of class
+- [x] Create a new global level for the interpreter that reads a list of class
   definitions, and stores each class with its definition in the environment.
 - [ ] Create a function that takes a variable, a class, and an instance, and
   checks if the variable is in the list of class or instance variables and
