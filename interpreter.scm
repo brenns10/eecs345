@@ -284,12 +284,12 @@
      ;; Lookup in the state.
      ((state-member? state varname) (state-lookup-box state varname))
      ;; Else, lookup in the class static fields.
-     ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls)))
+     ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls) varname))
      ;; Lookup in the instance, if it exists.
      ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
            (env-member? (list (class-instance-names cls) (inst-values)) varname))
       (env-lookup-box (list (class-instance-names cls) (inst-values)) varname))
-     (else 'not_found ))))
+     (else 'not_found))))
 
 (define lookup-func
   (lambda (varname state cls inst)
@@ -440,8 +440,8 @@
 
 (define Mvalue_dot
   (lambda (expr state ctx)
-    (let ((inst-class (dot-inst-class (cadr expr))))
-      (lookup-var (caddr expr) (state-new) (cadr inst-class) (car inst-class)))))
+    (let ((inst-class (dot-inst-class (cadr expr) state ctx)))
+      (unbox (lookup-var (caddr expr) (state-new) (cadr inst-class) (car inst-class))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
