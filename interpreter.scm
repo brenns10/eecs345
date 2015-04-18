@@ -28,6 +28,18 @@
         initial
         (fold-left function (function initial (car list)) (cdr list)))))
 
+;; Use a YC + CPS, cause why not?
+(define index-of
+  (lambda (list item)
+    (((lambda (f) (f f))
+      (lambda (f)
+        (lambda (list item return)
+          (cond
+           ((null? list) -1) ;; No CPS return
+           ((eq? (car list) item) (return 0))
+           (else ((f f) (cdr list) item (lambda (v) (return (+ 1 v)))))))))
+     list item (lambda (v) v))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer functions:  '((var_name1 var_name2) (var_value1 var_value2))
@@ -56,22 +68,19 @@
 ;; Add a (var value) binding to the layer.
 (define add-to-layer
   (lambda (layer var value)
-    (list (cons var (car layer)) (cons value (cadr layer)))))
+    (list (cons var (car layer)) (append (cadr layer) (list value)))))
 
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
   (lambda (layer var)
-    (cond
-     ((layer-empty? layer) 'not_found)
-     ((equal? var (firstvar layer)) (firstval layer))
-     (else (layer-lookup (layer-cdr layer) var)))))
+    (let ((idx (index-of (car layer) var)))
+      (if (= -1 idx)
+          'not_found
+          (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
 
 (define layer-member?
   (lambda (layer var)
-    (cond
-     ((layer-empty? layer) #f)
-     ((equal? var (firstvar layer)) #t)
-     (else (layer-member? (layer-cdr layer) var)))))
+    (not (= -1 (index-of (car layer) var)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
