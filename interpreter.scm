@@ -68,22 +68,19 @@
 ;; Add a (var value) binding to the layer.
 (define add-to-layer
   (lambda (layer var value)
-    (list (cons var (car layer)) (cons value (cadr layer)))))
+    (list (cons var (car layer)) (append (cadr layer) (list value)))))
 
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
   (lambda (layer var)
-    (cond
-     ((layer-empty? layer) 'not_found)
-     ((equal? var (firstvar layer)) (firstval layer))
-     (else (layer-lookup (layer-cdr layer) var)))))
+    (let ((idx (index-of (car layer) var)))
+      (if (= -1 idx)
+          'not_found
+          (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
 
 (define layer-member?
   (lambda (layer var)
-    (cond
-     ((layer-empty? layer) #f)
-     ((equal? var (firstvar layer)) #t)
-     (else (layer-member? (layer-cdr layer) var)))))
+    (not (= -1 (index-of (car layer) var)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
