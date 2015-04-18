@@ -65,4 +65,4 @@ workflow, and it's very useful!
   classes. (Follow the denotational semantics sketched in lecture.)
 - [ ] Update the code that interprets an assignment statement so that it looks
   for the variable in the environment, class and instance variables.
-- [ ] Create a new interpret function.
+- [x] Create a new interpret function.
