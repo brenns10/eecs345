@@ -512,7 +512,9 @@
                         (let ((class (state-lookup state cname)))
                           (cons (class-methods class)
                                 (cons (class-fields class)
-                                      (trim-state cname state)))))))))))
+                                      (trim-state cname state)))))
+                      (lambda (state)
+                        (state-lookup state cname))))))))
 
 ;; Get the state for a function call.
 (define Mstate_funccall
