@@ -317,7 +317,7 @@
     (let ((lookup (lookup-var lhs state (ctx-class ctx) (ctx-inst ctx))))
       (cond
        ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
-       ((eq? lhs 'super) (error "Super bad.  No super."))
+       ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent (ctx-class ctx))))
        ((eq? 'not_found lookup) (error "Not found."))
        ((eq? 'class (car (unbox lookup))) (list 'null (unbox lookup)))
        ((eq? 'inst (car (unbox lookup))) (list (unbox lookup) (inst-class (unbox lookup))))
