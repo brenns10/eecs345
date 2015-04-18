@@ -92,10 +92,11 @@
       (if (= -1 idx)
           'not_found
           (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
+(define env-lookup-box layer-lookup)
 (define env-lookup
   (lambda (env var)
-    (let ((val (layer-lookup env var)))
-      (if (eq? value 'not_found)
+    (let ((val (env-lookup-box env var)))
+      (if (eq? val 'not_found)
           'not_found
           (unbox val)))))
 
@@ -166,6 +167,10 @@
 (define state-lookup
   (lambda (state var) (unbox (state-lookup-box state var))))
 
+(define state-member?
+  (lambda (state var)
+    (not (eq? (state-get-binding state var) 'not_found))))
+
 
 ;; Update the binding for a variable in the state, preserving its layer
 ;; location.
@@ -189,25 +194,25 @@
 
 (define class-new
   (lambda (parent name)
-    (list parent name (env-new) (env-new) '())))
+    (list 'class parent name (env-new) (env-new) '())))
 
-(define class-parent car)
-(define class-name cadr)
-(define class-fields caddr)
-(define class-methods cadddr)
-(define class-instance-names (lambda (l) (list-ref l 4)))
+(define class-parent cadr)
+(define class-name caddr)
+(define class-fields cadddr)
+(define class-methods (lambda (l) (list-ref l 4)))
+(define class-instance-names (lambda (l) (list-ref l 5)))
 
 (define class-fields-set
   (lambda (cls fields)
-    (list-set cls 2 fields)))
+    (list-set cls 3 fields)))
 
 (define class-methods-set
   (lambda (cls methods)
-    (list-set cls 3 methods)))
+    (list-set cls 4 methods)))
 
 (define class-instance-names-set
   (lambda (cls instance-names)
-    (list-set cls 4 instance-names)))
+    (list-set cls 5 instance-names)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Instance functions: An instance is a list containing:
@@ -217,14 +222,14 @@
 
 (define inst-new
   (lambda (cls)
-    (list cls '())))
+    (list 'inst cls '())))
 
-(define inst-cls car)
-(define inst-values cadr)
+(define inst-cls cadr)
+(define inst-values caddr)
 
 (define inst-values-set
   (lambda (inst values)
-    (list (inst-cls) values)))
+    (list 'inst (inst-cls) values)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -262,8 +267,66 @@
     (list-set ctx 3 class)))
 
 (define ctx-inst-set
-  (lambda (ctx class)
+  (lambda (ctx inst)
     (list-set ctx 4 inst)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Miscellaneous Object-Oriented Functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; A universal lookup function!  Looks up varname in the state, then the class
+;; fields, then the instance fields.  Pass (state-new) if you want to bypass
+;; looking in the state (eg. if you received the dot operator).  Returns the
+;; BOXED value, so that if you are doing assignment, you can assign to it.
+(define lookup-var
+  (lambda (varname state cls inst)
+    (cond
+     ;; Lookup in the state.
+     ((state-member? state varname) (state-lookup-box state varname))
+     ;; Else, lookup in the class static fields.
+     ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls)))
+     ;; Lookup in the instance, if it exists.
+     ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
+           (env-member? (list (class-instance-names cls) (inst-values)) varname))
+      (env-lookup-box (list (class-instance-names cls) (inst-values)) varname))
+     (else 'not_found ))))
+
+(define lookup-func
+  (lambda (varname state cls inst)
+    ;; (display "\nLooking up function\n")
+    ;; (display varname) (display "\n")
+    ;; (display "IN: state:") (display state) (display "\n")
+    ;; (display "IN: cls:") (display cls) (display "\n")
+    ;; (display "IN: inst:") (display inst) (display "\n")
+    (cond
+     ((state-member? state varname) (state-lookup state varname))
+     ((env-member? (class-methods cls) varname) (env-lookup (class-methods cls) varname))
+     (else (error "Function name not found.")))))
+
+(define dot-inst-class
+  (lambda (lhs state ctx)
+    (let ((lookup (unbox (lookup-var lhs state (ctx-class ctx) (ctx-inst ctx)))))
+      (cond
+       ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
+       ((eq? lhs 'super) (error "Super bad.  No super."))
+       ((eq? 'not_found lookup) (error "Not found."))
+       ((eq? 'class (car lookup)) (list 'null lookup))
+       ((eq? 'inst (car lookup)) (list lookup (inst-class lookup)))
+       ((eq? (car lhs) 'funcall)
+        (let ((result (Mvalue_funccall lhs state ctx)))
+          (list result (inst-class result))))))))
+
+(define lookup-dot-func
+  (lambda (dotexpr state ctx)
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+      (lookup-func (caddr dotexpr) state (cadr inst-class) (car inst-class)))))
+
+(define lookup-dot-var
+  (lambda (dotexpr state ctx)
+    (let ((inst-class (dot-inst-class (cadr dotexpr state ctx))))
+      (lookup-var (caddr dotexpr) state (cadr inst-class) (car inst-class)))))
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
@@ -333,9 +396,9 @@
       ((or (boolean? expr) (number? expr)) expr)
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
-      ((eq? 'undefined (state-lookup state expr))
+      ((eq? 'undefined (Mvalue_var expr state ctx))
        (error "Use of undefined variable."))
-      (else (state-lookup state expr)))))
+      (else (Mvalue_var expr state ctx)))))
 
 (define new-layer-from-arglist
   (lambda (formal actual state ctx)
@@ -352,7 +415,9 @@
 
 (define Mvalue_funccall
   (lambda (funccall state ctx)
-    (let* ((closure  (state-lookup state (cadr funccall)))
+    (let* ((closure (if (list? (cadr funccall))
+                        (lookup-dot-func (cadr funccall) state ctx)
+                        (lookup-func (cadr funccall) state (ctx-class ctx) (ctx-inst ctx))))
            (outerenv ((caddr closure) state))
            (newstate (cons (new-layer-from-arglist (car closure) (cddr funccall)
                                                    state ctx)
@@ -360,12 +425,23 @@
            (err (lambda (v) (error "Can't break or continue here."))))
       (call/cc
        (lambda (return)
-         (Mstate_stmtlist (cadr closure) newstate (ctx-return-set
-                                                   (ctx-break-set
-                                                    (ctx-continue-set
-                                                     ctx err)
-                                                    err)
-                                                   return)))))))
+         (Mstate_stmtlist (cadr closure) newstate (ctx-class-set
+                                                   (ctx-return-set
+                                                    (ctx-break-set
+                                                     (ctx-continue-set
+                                                      ctx err)
+                                                     err)
+                                                    return)
+                                                   ((cadddr closure) state))))))))
+
+(define Mvalue_var
+  (lambda (expr state ctx)
+    (unbox (lookup-var expr state (ctx-class ctx) (ctx-inst ctx)))))
+
+(define Mvalue_dot
+  (lambda (expr state ctx)
+    (let ((inst-class (dot-inst-class (cadr expr))))
+      (lookup-var (caddr expr) (state-new) (cadr inst-class) (car inst-class)))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -374,6 +450,7 @@
      ((list? expr) (cond
                     ((eq? '= (car expr)) (Mvalue_assign expr state ctx))
                     ((eq? 'funcall (car expr)) (Mvalue_funccall expr state ctx))
+                    ((eq? 'dot (car expr)) (Mvalue_dot expr state ctx))
                     (else (Mvalue_expression expr state ctx))))
      (else (Mvalue_atom expr state ctx)))))
 
@@ -418,6 +495,17 @@
                    (Mvalue (caddr stmt) state ctx))
         ;; This is just declaration.
         (state-add state (cadr stmt) 'undefined))))
+
+(define Mclass_staticdeclare
+  (lambda (stmt state ctx)
+    (let* ((class (ctx-class ctx)))
+      (class-fields-set
+       class
+       (env-add (class-fields class)
+                (cadr stmt)
+                (if (= 3 (length stmt))
+                    (Mvalue (caddr stmt) state ctx)
+                    'undefined))))))
 
 (define Mstate_assign
   (lambda (stmt state ctx)
@@ -495,7 +583,7 @@
                        (lambda (state) ; Function to create the appropriate environment
                          (trim-state fname state))
                        (lambda (state) ; Function to get this function's class
-                         (state-lookup state (class-name (ctx-class)))))))))
+                         (ctx-class ctx)))))))
 
 (define Mclass_staticfuncdecl
   (lambda (funcdecl state ctx)
@@ -550,17 +638,18 @@
      ((null? stmt) (ctx-class ctx))
      ((list? stmt) (cond
                     ((eq? 'static-function (car stmt)) (Mclass_staticfuncdecl stmt state ctx))
-                    ((eq? 'static-var (car stmt)) (Mclass_staticvar stmt state ctx))
+                    ((eq? 'static-var (car stmt)) (Mclass_staticdeclare stmt state ctx))
                     (else (error "You can only declare static functions and variables in a class."))))
      (else (ctx-class ctx)))))
 
 (define Mclass_stmtlist
   (lambda (block state ctx)
+;;    (display (ctx-class ctx)) (display "\n") (flush-output)
     (if (null? block)
         (ctx-class ctx)
         (Mclass_stmtlist (cdr block)
                          state
-                         (Mclass (car block) state ctx)))))
+                         (ctx-class-set ctx (Mclass (car block) state ctx))))))
 
 (define Mstate_class
   (lambda (stmt state ctx)
@@ -592,4 +681,5 @@
                        (state (outer-interpreter (parser filename) (state-new) (ctx-new err err err 'null 'null))))
                   (call/cc
                    (lambda (return)
-                     (Mvalue (list 'funcall (list 'dot class 'main)) state (ctx-new return err err class 'null))))))))
+;;                     (display state) (display "\n") (flush-output)
+                     (Mvalue (list 'funcall (list 'dot class 'main)) state (ctx-new return err err 'null 'null))))))))
