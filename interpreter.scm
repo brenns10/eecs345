@@ -556,7 +556,6 @@
 
 (define Mclass_stmtlist
   (lambda (block state ctx)
-    (display (ctx-class ctx)) (display "\n") (flush-output)
     (if (null? block)
         (ctx-class ctx)
         (Mclass_stmtlist (cdr block)
@@ -570,7 +569,6 @@
            (parent (if (null? extends) 'null (state-lookup state (cadr extends))))
            (body (cadddr stmt))
            (class (Mclass_stmtlist body state (ctx-class-set ctx (class-new parent name)))))
-      (display class) (display "\n") (flush-output)
       (state-add state name class))))
 
 
@@ -594,5 +592,4 @@
                        (state (outer-interpreter (parser filename) (state-new) (ctx-new err err err 'null 'null))))
                   (call/cc
                    (lambda (return)
-                     (display state) (display "\n") (flush-output)
                      (Mvalue (list 'funcall (list 'dot class 'main)) state (ctx-new return err err class 'null))))))))
