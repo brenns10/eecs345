@@ -194,7 +194,16 @@
 
 (define class-new
   (lambda (parent name)
-    (list 'class parent name (env-new) (env-new) '())))
+    (list 'class parent name
+          (if (eq? parent 'null)
+              (env-new)
+              (class-fields parent))
+          (if (eq? parent 'null)
+              (env-new)
+              (class-methods parent))
+          (if (eq? parent 'null)
+              '()
+              (class-instance-names parent)))))
 
 (define class-parent cadr)
 (define class-name caddr)
