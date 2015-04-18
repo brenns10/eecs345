@@ -42,12 +42,18 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Layer functions:  '((var_name1 var_name2) (var_value1 var_value2))
+;; Layer/Environment functions:  '((var_name1 var_name2) (var_value1 var_value2))
+;; - There are two interfaces defined here - layer and environment.
+;; - Layer is blind to the existence of boxes, and so it's very useful to the
+;;   state, which handles all the boxing and unboxing for you.
+;; - Environment knows about boxes, and it's good for use in class/instances.
+;; - There's no difference in the data structure, or how they search for stuff.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; A new layer.
 (define layer-new
   (lambda () '(() ())))
+(define env-new layer-new)
 
 ;; The first variable in the layer.
 (define firstvar caar)
@@ -64,11 +70,14 @@
 (define layer-empty?
   (lambda (layer)
     (null? (car layer))))
+(define env-empty? layer-empty?)
 
 ;; Add a (var value) binding to the layer.
 (define add-to-layer
   (lambda (layer var value)
     (list (cons var (car layer)) (append (cadr layer) (list value)))))
+(define env-add
+  (lambda (env var value) (add-to-layer (env var (box value)))))
 
 ;; Lookup the binding for var in the state layer.
 (define layer-lookup
@@ -77,10 +86,24 @@
       (if (= -1 idx)
           'not_found
           (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
+(define env-lookup
+  (lambda (env var)
+    (let ((val (layer-lookup env var)))
+      (if (eq? value 'not_found)
+          'not_found
+          (unbox val)))))
+
+(define env-update
+  (lambda (env var new)
+    (let ((box (layer-lookup env var)))
+      (if (eq? box 'not_found)
+          (error "Variable binding not found.")
+          (set-box! box new)))))
 
 (define layer-member?
   (lambda (layer var)
     (not (= -1 (index-of (car layer) var)))))
+(define env-member? layer-member?)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
