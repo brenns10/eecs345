@@ -37,7 +37,7 @@ workflow, and it's very useful!
 - [x] Use an environment that separates the names from the values, and have the
   values stored in reverse order, using the index of the name to look up the
   value. (This will be needed in part 5.)
-- [ ] Create helper functions to create a new class and instance (will be needed
+- [x] Create helper functions to create a new class and instance (will be needed
   for part 5) and to access the portions of a class and instance.
 - [ ] All M_state and M_value functions will need to pass parameters for the
   class (the compile-time type) and instance ("this" - needed for part 5).
