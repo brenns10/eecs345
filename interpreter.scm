@@ -172,6 +172,61 @@
             (set-box! box value)
             state)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Class functions: A class is a list containing the following (in order):
+;; - Parent class, or 'null.
+;; - Class field environment.
+;; - Method environment.
+;; - Instance field names.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define class-new
+  (lambda (parent)
+    (list parent (env-new) (env-new) '())))
+
+(define class-parent car)
+(define class-fields cadr)
+(define class-methods caddr)
+(define class-instance-names cadddr)
+
+(define class-fields-set
+  (lambda (cls fields)
+    (list (class-parent cls)
+          fields
+          (class-methods cls)
+          (class-instance-names cls))))
+
+(define class-methods-set
+  (lambda (cls methods)
+    (list (class-parent cls)
+          (class-fields cls)
+          methods
+          (class-instance-names cls))))
+
+(define class-instance-names-set
+  (lambda (cls instance-names)
+    (list (class-parent cls)
+          (class-fields cls)
+          (class-methods cls)
+          instance-names)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Instance functions: An instance is a list containing:
+;; - The class
+;; - The instance field values.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define inst-new
+  (lambda (cls)
+    (list cls '())))
+
+(define inst-cls car)
+(define inst-values cadr)
+
+(define inst-values-set
+  (lambda (inst values)
+    (list (inst-cls) values)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Context Functions (a context contains all the damn continuations)
