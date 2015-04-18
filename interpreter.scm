@@ -28,6 +28,18 @@
         initial
         (fold-left function (function initial (car list)) (cdr list)))))
 
+;; Use a YC + CPS, cause why not?
+(define index-of
+  (lambda (list item)
+    (((lambda (f) (f f))
+      (lambda (f)
+        (lambda (list item return)
+          (cond
+           ((null? list) -1) ;; No CPS return
+           ((eq? (car list) item) (return 0))
+           (else ((f f) (cdr list) item (lambda (v) (return (+ 1 v)))))))))
+     list item (lambda (v) v))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer functions:  '((var_name1 var_name2) (var_value1 var_value2))
