@@ -328,12 +328,12 @@
 (define lookup-dot-func
   (lambda (dotexpr state ctx)
     (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
-      (lookup-func (caddr dotexpr) state (cadr inst-class) (car inst-class)))))
+      (lookup-func (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
 
 (define lookup-dot-var
   (lambda (dotexpr state ctx)
-    (let ((inst-class (dot-inst-class (cadr dotexpr state ctx))))
-      (lookup-var (caddr dotexpr) state (cadr inst-class) (car inst-class)))))
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+      (lookup-var (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
 
 
 
@@ -449,8 +449,7 @@
 
 (define Mvalue_dot
   (lambda (expr state ctx)
-    (let ((inst-class (dot-inst-class (cadr expr) state ctx)))
-      (unbox (lookup-var (caddr expr) (state-new) (cadr inst-class) (car inst-class))))))
+    (unbox (lookup-dot-var expr state ctx))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
