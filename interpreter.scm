@@ -515,6 +515,7 @@
                     (Mvalue (caddr stmt) state ctx)
                     'undefined))))))
 
+;; TODO: this still needs to be updated to work with dot operator.
 (define Mstate_assign
   (lambda (stmt state ctx)
     (state-update state (cadr stmt) (Mvalue (caddr stmt) state ctx))))
