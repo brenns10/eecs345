@@ -34,6 +34,8 @@ workflow, and it's very useful!
 
 **PART 4: Classes :(**
 
+*To-Do: Static Classes:*
+
 - [x] Use an environment that separates the names from the values, and have the
   values stored in reverse order, using the index of the name to look up the
   value. (This will be needed in part 5.)
@@ -51,18 +53,22 @@ workflow, and it's very useful!
   function to the closure that looks up the function's class in the environment.
 - [x] Create a new global level for the interpreter that reads a list of class
   definitions, and stores each class with its definition in the environment.
-- [ ] Create a function that takes a variable, a class, and an instance, and
+- [x] Create a function that takes a variable, a class, and an instance, and
   checks if the variable is in the list of class or instance variables and
   returns its value.
-- [ ] Create a function that takes a variable, and environment, a class, and an
+- [x] Create a function that takes a variable, and environment, a class, and an
   instance, if the variable is in the environment, look it up, otherwise look in
   the class and instance variables. (Why both this function and the one above
-  it? To deal with when you have a dot and when you don't.)
-- [ ] Create a pair of functions (or a single function that returns a pair) that
+  it? To deal with when you have a dot and when you don't.) (*Actually, I didn't
+  really need to do that.  I just created one function, and passed `(state-new)`
+  when I had a dot.*).
+- [x] Create a pair of functions (or a single function that returns a pair) that
   takes the left hand side of a dot expression and returns the class and the
   instance of the left hand side.
-- [ ] Update the code that evaluates a function call to deal with objects and
-  classes. (Follow the denotational semantics sketched in lecture.)
+- [ ] *Not sure if totally complete.* Update the code that evaluates a function
+  call to deal with objects and classes. (Follow the denotational semantics
+  sketched in lecture.) (*I'm not sure because I don't have complete
+  denotational semantics for functions notes.  But, it seems to work.*)
 - [ ] Update the code that interprets an assignment statement so that it looks
   for the variable in the environment, class and instance variables.
 - [x] Create a new interpret function.
