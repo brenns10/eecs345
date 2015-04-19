@@ -1,0 +1,13 @@
+class A {
+  static var x = 1;
+  static var b = 2;
+}
+class B {
+  static var y = 3;
+  static var a = 4;
+  static function main() {
+    A.b = B;
+    B.a = A;
+    return a.b.a.b.a.b.y;
+  }
+}

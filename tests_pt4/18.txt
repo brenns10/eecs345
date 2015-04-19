@@ -1,0 +1,13 @@
+class A {
+  static var x = 10;
+  static function getA() {
+    return A;
+  }
+}
+
+class B {
+  static var y = 12;
+  static function main() {
+    return A.getA().x;
+  }
+}
