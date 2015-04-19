@@ -1,4 +1,4 @@
-;; EECS 345 Project Part 3
+;; EECS 345 Project Part 4
 ;; Stephen Brennan (smb196)
 ;; Joe Fennimore (jrf118)
 ;; Kaan Atesoglu (aka43)
@@ -16,19 +16,8 @@
   (lambda (x y)
     (not (= x y))))
 
-;; Perform a left fold.  Takes a function which takes two arguments, an initial
-;; value to supply to the function, and a list of arguments.  Applies the
-;; function to the initial value (as the first argument) and the first element
-;; of the list (as the second argument).  The return value is then used as the
-;; initial value for the next element of the list.  EG:
-;; (fold-left + 0 '(1 2 3 4)) => 10
-(define fold-left
-  (lambda (function initial list)
-    (if (null? list)
-        initial
-        (fold-left function (function initial (car list)) (cdr list)))))
-
-;; Use a YC + CPS, cause why not?
+;; index-of: Return the index of an atom in a list (doesn't work for numbers).
+;; I implemented this using a YC + CPS, cause why not?
 (define index-of
   (lambda (list item)
     (((lambda (f) (f f))
@@ -40,11 +29,22 @@
            (else ((f f) (cdr list) item (lambda (v) (return (+ 1 v)))))))))
      list item (lambda (v) v))))
 
+;; list-set: Return the given list with the value at the given index replaced by
+;; the given value.
 (define list-set
   (lambda (list idx val)
     (if (= 0 idx)
         (cons val (cdr list))
         (cons (car list) (list-set (cdr list) (- idx 1) val)))))
+
+;; Helper method to handle the fact that return statements should return
+;; the atoms 'true or 'false rather than #t and #f
+(define return_val
+  (lambda (stmt)
+    (cond
+      ((eq? stmt #t) 'true)
+      ((eq? stmt #f) 'false)
+      (else stmt))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -56,7 +56,7 @@
 ;; - There's no difference in the data structure, or how they search for stuff.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; A new layer.
+;; A new layer/environment.
 (define layer-new
   (lambda () '(() ())))
 (define env-new layer-new)
@@ -92,13 +92,17 @@
       (if (= -1 idx)
           'not_found
           (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
+(define env-lookup-box layer-lookup)
+
+;; Lookup a binding in an environment, and return it unboxed.
 (define env-lookup
   (lambda (env var)
-    (let ((val (layer-lookup env var)))
-      (if (eq? value 'not_found)
+    (let ((val (env-lookup-box env var)))
+      (if (eq? val 'not_found)
           'not_found
           (unbox val)))))
 
+;; Update a binding in an environment.
 (define env-update
   (lambda (env var new)
     (let ((box (layer-lookup env var)))
@@ -106,10 +110,12 @@
           (error "Variable binding not found.")
           (set-box! box new)))))
 
+;; Return true if a variable is present in an environment/layer.
 (define layer-member?
   (lambda (layer var)
     (not (= -1 (index-of (car layer) var)))))
 (define env-member? layer-member?)
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; State functions (states are lists of layers)
@@ -166,6 +172,10 @@
 (define state-lookup
   (lambda (state var) (unbox (state-lookup-box state var))))
 
+;; Return true if a variable is a member of a state.
+(define state-member?
+  (lambda (state var)
+    (not (eq? (state-get-binding state var) 'not_found))))
 
 ;; Update the binding for a variable in the state, preserving its layer
 ;; location.
@@ -178,8 +188,10 @@
             (set-box! box value)
             state)))))
 
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Class functions: A class is a list containing the following (in order):
+;; - 'class
 ;; - Parent class, or 'null.
 ;; - Class name
 ;; - Class field environment.
@@ -187,44 +199,65 @@
 ;; - Instance field names.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Return a new class.  If the parent is not 'null, it will populate the fields,
+;; methods, and instance fields with the parent's.
 (define class-new
   (lambda (parent name)
-    (list parent name (env-new) (env-new) '())))
+    (list 'class parent name
+          (if (eq? parent 'null)
+              (env-new)
+              (class-fields parent))
+          (if (eq? parent 'null)
+              (env-new)
+              (class-methods parent))
+          (if (eq? parent 'null)
+              '()
+              (class-instance-names parent)))))
 
-(define class-parent car)
-(define class-name cadr)
-(define class-fields caddr)
-(define class-methods cadddr)
-(define class-instance-names (lambda (l) (list-ref l 4)))
+;; Functions for accessing items in a class.
+(define class-parent cadr)
+(define class-name caddr)
+(define class-fields cadddr)
+(define class-methods (lambda (l) (list-ref l 4)))
+(define class-instance-names (lambda (l) (list-ref l 5)))
 
+;; The following functions are used to modify a class.  They return new class
+;; objects, since classes are immutable here in Scheme-land.  They should only
+;; be used when building a class (doing Mclass stuff).
 (define class-fields-set
   (lambda (cls fields)
-    (list-set cls 2 fields)))
+    (list-set cls 3 fields)))
 
 (define class-methods-set
   (lambda (cls methods)
-    (list-set cls 3 methods)))
+    (list-set cls 4 methods)))
 
 (define class-instance-names-set
   (lambda (cls instance-names)
-    (list-set cls 4 instance-names)))
+    (list-set cls 5 instance-names)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Instance functions: An instance is a list containing:
+;; - 'list
 ;; - The class
 ;; - The instance field values.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; A new instance.  This will probably change when we actually start doing
+;; instances in Part 5.
 (define inst-new
   (lambda (cls)
-    (list cls '())))
+    (list 'inst cls '())))
 
-(define inst-cls car)
-(define inst-values cadr)
+;; Acessors for instances.
+(define inst-cls cadr)
+(define inst-values caddr)
 
+;; To modify an instance.
 (define inst-values-set
   (lambda (inst values)
-    (list (inst-cls) values)))
+    (list 'inst (inst-cls) values)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -234,17 +267,27 @@
 ;;    damn time!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; New continuation - contains all caller-defined values
+;; New context - contains all caller-defined values.  This one should be
+;; avoided, since it requires knowing the exact number of things in the context,
+;; which will change and break code.
 (define ctx-new list)
 
-;; The functions for accessing items in the continuation.
+;; New context - contains some nice defaults.
+(define ctx-default
+  (lambda ()
+    (list (lambda (v) (error "You can't return here!"))
+          (lambda (v) (error "You can't break here!"))
+          (lambda (v) (error "You can't continue here!"))
+          'null 'null)))
+
+;; The functions for accessing items in the context.
 (define ctx-return car)
 (define ctx-break cadr)
 (define ctx-continue caddr)
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
 
-;; The functions for modifying items in the continuation.
+;; The functions for modifying items in the context.
 (define ctx-return-set
   (lambda (ctx return)
     (cons return (cdr ctx))))
@@ -262,8 +305,86 @@
     (list-set ctx 3 class)))
 
 (define ctx-inst-set
-  (lambda (ctx class)
+  (lambda (ctx inst)
     (list-set ctx 4 inst)))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Miscellaneous Object-Oriented Functions
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; Lookup a variable's box given its name, and the state/class/instance.  If the
+;; variable name was dotted, you can simply pass (state-new) to this function to
+;; skip looking in the state.
+(define variable-lookup
+  (lambda (varname state cls inst)
+    (cond
+     ;; Lookup in the state.
+     ((state-member? state varname) (state-lookup-box state varname))
+     ;; Else, lookup in the class static fields.
+     ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls) varname))
+     ;; Lookup in the instance, if it exists.
+     ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
+           (env-member? (list (class-instance-names cls) (inst-values)) varname))
+      (env-lookup-box (list (class-instance-names cls) (inst-values)) varname))
+     (else 'not_found))))
+
+;; Lookup a function from the environment, or the class (or instance?).
+(define function-lookup
+  (lambda (varname state cls inst)
+    (cond
+     ((state-member? state varname) (state-lookup state varname))
+     ((env-member? (class-methods cls) varname) (env-lookup (class-methods cls) varname))
+     (else (error "Function name not found.")))))
+
+;; This function takes a symbol (e.g. a variable, class, function call, or
+;; keyword) and converts it into an appropriate list pair (class, instance).
+;; This is where you would implement something like this or super.
+(define dot-inst-class
+  (lambda (lhs state ctx)
+    (let ((lookup (variable-lookup lhs state (ctx-class ctx) (ctx-inst ctx))))
+      (cond
+       ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
+       ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent (ctx-class ctx))))
+       ((eq? 'not_found lookup) (error "Not found."))
+       ((eq? 'class (car (unbox lookup))) (list 'null (unbox lookup)))
+       ((eq? 'inst (car (unbox lookup))) (list (unbox lookup) (inst-class (unbox lookup))))
+       ((eq? (car lhs) 'funcall)
+        (let ((result (Mvalue_funccall lhs state ctx)))
+          (list result (inst-class result))))))))
+
+;; This helper function looks up the function corresponding to a dot expression.
+;; First, it resolves the dot by calling dot-inst-class, then, it looks up the
+;; function using that instance and class (but not the state).
+(define lookup-dot-func
+  (lambda (dotexpr state ctx)
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+      (function-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
+
+;; This universal function lookup takes any expression that resolves to a
+;; function name (either a function name, or a dot expression) and returns the
+;; closure corresponding to it.
+(define lookup-func
+  (lambda (expr state ctx)
+    (if (list? expr)  ;; If the expression is a list, then it must be a dot.
+        (lookup-dot-func expr state ctx)
+        (function-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
+
+;; This helper function looks up the variable corresponding to a dot expression,
+;; by the same process as lookup-dot-var.
+(define lookup-dot-var
+  (lambda (dotexpr state ctx)
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+      (variable-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
+
+;; This universal function takes any expression that resolves to a variable and
+;; returns the box corresponding to it.  It's pretty awesome.
+(define lookup-var
+  (lambda (expr state ctx)
+    (if (list? expr) ;; If the expression is a list, then it must be dotted.
+        (lookup-dot-var expr state ctx)
+        (variable-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Mvalue functions
@@ -287,7 +408,7 @@
 
       ; Boolean functions
       ((eq? op '&&) (lambda (x y) (and x y))) ; Can't use 'and' as a function
-                                              ; name- it's a keyword
+                                              ; name- it's a macro
       ((eq? op '||) (lambda (x y) (or x y)))
       ((eq? op '<) <)
       ((eq? op '>) >)
@@ -319,11 +440,18 @@
         ((opfunc-unary (operator expr))
          (Mvalue (leftoperand expr) state ctx)))))
 
-;; Returns the value of a statement.  This is only currently implemented for
-;; assignment statements (because they're kinda expressions too).
+;; Returns the value of an assignment operation.
 (define Mvalue_assign
   (lambda (expr state ctx)
-      (state-lookup (Mstate_assign expr state ctx) (cadr expr))))
+    (let* (;; We have to lookup the box first (it may not matter now, but if
+           ;; there were arrays there would be side effect issues without it).
+           (box (lookup-var (cadr expr) state ctx))
+           ;; Then, we compute the value to store in the box.
+           (value (Mvalue (caddr expr) state ctx)))
+      ;; Finally, we set the box.
+      (set-box! box value)
+      ;; And return the value.
+      value)))
 
 ;; Returns the value of a parse tree fragment which is just an atom (could be
 ;; either a variable or literal).
@@ -333,10 +461,12 @@
       ((or (boolean? expr) (number? expr)) expr)
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
-      ((eq? 'undefined (state-lookup state expr))
+      ((eq? 'undefined (Mvalue_var expr state ctx))
        (error "Use of undefined variable."))
-      (else (state-lookup state expr)))))
+      (else (Mvalue_var expr state ctx)))))
 
+;; This function takes a formal parameter list and an actual parameter list, and
+;; then converts this into a state layer.  It handles references properly.
 (define new-layer-from-arglist
   (lambda (formal actual state ctx)
     (cond
@@ -345,27 +475,48 @@
      ((eq? '& (car formal)) (add-to-layer (new-layer-from-arglist (cddr formal) (cdr actual)
                                                                   state ctx)
                                           (cadr formal)
-                                          (state-lookup-box state (car actual))))
+                                          (lookup-var (car actual) state ctx)))
      (else (add-to-layer (new-layer-from-arglist (cdr formal) (cdr actual)
                                                  state ctx)
                          (car formal) (box (Mvalue (car actual) state ctx)))))))
 
+;; Return the result of a function call.
 (define Mvalue_funccall
   (lambda (funccall state ctx)
-    (let* ((closure  (state-lookup state (cadr funccall)))
+    (let* (;; First, get the closure for this function.
+           (closure (lookup-func (cadr funccall) state ctx))
+           ;; Then, call the function to get the new environment.
            (outerenv ((caddr closure) state))
+           ;; Then, add on the new layer, constructed form arguments.
            (newstate (cons (new-layer-from-arglist (car closure) (cddr funccall)
                                                    state ctx)
                            outerenv))
            (err (lambda (v) (error "Can't break or continue here."))))
+      ;; We need a return continuation so we can get the return value.
       (call/cc
        (lambda (return)
-         (Mstate_stmtlist (cadr closure) newstate (ctx-return-set
-                                                   (ctx-break-set
-                                                    (ctx-continue-set
-                                                     ctx err)
-                                                    err)
-                                                   return)))))))
+         ;; Then, just execute each statement, with all the new stuff
+         (Mstate_stmtlist (cadr closure) newstate (ctx-class-set ; Set the class
+                                                   (ctx-return-set ; Set the return
+                                                    (ctx-break-set  ; Set break
+                                                     (ctx-continue-set ; Set continue
+                                                      ctx err)
+                                                     err)
+                                                    return)
+                                                   ((cadddr closure) state))))))))
+
+;; Returns the value of a variable.  It could be in the function's execution
+;; environment, or it could be in the class's static or instance environments.
+(define Mvalue_var
+  (lambda (expr state ctx)
+    (unbox (variable-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
+
+;; Returns the value of a dot expression.  This can only be a variable access,
+;; because if it were a function call, it would look like:
+;;   (funcall (dot A main))
+(define Mvalue_dot
+  (lambda (expr state ctx)
+    (unbox (lookup-dot-var expr state ctx))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -374,6 +525,7 @@
      ((list? expr) (cond
                     ((eq? '= (car expr)) (Mvalue_assign expr state ctx))
                     ((eq? 'funcall (car expr)) (Mvalue_funccall expr state ctx))
+                    ((eq? 'dot (car expr)) (Mvalue_dot expr state ctx))
                     (else (Mvalue_expression expr state ctx))))
      (else (Mvalue_atom expr state ctx)))))
 
@@ -419,22 +571,15 @@
         ;; This is just declaration.
         (state-add state (cadr stmt) 'undefined))))
 
+;; Return the state after assigning a value to a variable.
 (define Mstate_assign
   (lambda (stmt state ctx)
-    (state-update state (cadr stmt) (Mvalue (caddr stmt) state ctx))))
+    (begin (Mvalue_assign stmt state ctx) state)))
 
+;; Executes the return continuation!!!
 (define Mstate_return
   (lambda (stmt state ctx)
     ((ctx-return ctx) (Mvalue (cadr stmt) state ctx))))
-
-;; Helper method to handle the fact that return statements should return
-;; the atoms 'true or 'false rather than #t and #f
-(define return_val
-  (lambda (stmt)
-    (cond
-      ((eq? stmt #t) 'true)
-      ((eq? stmt #f) 'false)
-      (else stmt))))
 
 ;; Execute a list of statements.  This doesn't add a layer, it just executes the
 ;; statements in order.
@@ -461,7 +606,7 @@
                         (lambda (s) ((ctx-break ctx) (remove-layer s))))
                        (lambda (s) ((ctx-continue ctx) (remove-layer s))))))))
 
-;; Executes a while statement.
+;; Executes a while statement.  What a mess of continuations!
 (define Mstate_while
   (lambda (stmt state ctx)
     ;; Create the new break continuation.
@@ -495,35 +640,18 @@
                        (lambda (state) ; Function to create the appropriate environment
                          (trim-state fname state))
                        (lambda (state) ; Function to get this function's class
-                         (state-lookup state (class-name (ctx-class)))))))))
+                         (ctx-class ctx)))))))
 
-(define Mclass_staticfuncdecl
-  (lambda (funcdecl state ctx)
-    (let* ((fname (cadr funcdecl))
-           (cls (ctx-class ctx))
-           (cname (class-name cls)))
-      (class-methods-set
-       cls
-       (env-add (class-methods cls)
-                fname
-                (list (caddr funcdecl) ; Parameter list
-                      (cadddr funcdecl) ; Body
-                      (lambda (state) ; Function to create environment.
-                        (let ((class (state-lookup state cname)))
-                          (cons (class-methods class)
-                                (cons (class-fields class)
-                                      (trim-state cname state)))))
-                      (lambda (state)
-                        (state-lookup state cname))))))))
-
-;; Get the state for a function call.
+;; Get the state for a function call.  This simply delegates that responsibility
+;; to Mvalue_funccall.  This works because the side effects are maintained with
+;; boxes.  We just throw away the return value that Mvalue gives us.
 (define Mstate_funccall
   (lambda (funccall state ctx)
     (begin
       (Mvalue funccall state ctx)
       state)))
 
-;; Return the state after executing any parse tree fragment.
+;; Return the state after executing any function code.
 (define Mstate
   (lambda (stmt state ctx)
     (cond
@@ -543,25 +671,80 @@
                     (else state)))
      (else state))))
 
-;; This is like Mstate, but for within classes.
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Mclass functions: These functions interpret the blocks of code within
+;; classes.  Each function should return an updated version of the class we are
+;; currently parsing.
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; This function interprets a static variable declaration.
+(define Mclass_staticdeclare
+  (lambda (stmt state ctx)
+    (let* ((class (ctx-class ctx)))
+      (class-fields-set
+       class
+       (env-add (class-fields class)
+                (cadr stmt)
+                (if (= 3 (length stmt)) ;; Allow for assignment.
+                    (Mvalue (caddr stmt) state ctx)
+                    'undefined))))))
+
+;; This function interprets a static function declaration.  Compare to
+;; Mstate_funcdecl.  There was no real way to share the code, and their
+;; functionality is different enough that I'm not too concerned.
+(define Mclass_staticfuncdecl
+  (lambda (funcdecl state ctx)
+    (let* ((fname (cadr funcdecl))   ; The function name.
+           (cls (ctx-class ctx))     ; The class we are building.
+           (cname (class-name cls))) ; The name of the class we are building.
+      ;; Basically, we return a new version of the class, with the class method
+      ;; list updated.
+      (class-methods-set
+       cls
+       (env-add (class-methods cls)
+                fname
+                (list (caddr funcdecl)  ; Parameter list
+                      (cadddr funcdecl) ; Body
+                      (lambda (state)   ; Function to create environment.
+                        (let ((class (state-lookup state cname)))
+                          (cons (class-methods class)
+                                (cons (class-fields class)
+                                      (trim-state cname state)))))
+                      (lambda (state)   ; Function to get class from a state.
+                        (state-lookup state cname))))))))
+
+;; This is like the big Mstate function, but it reads each statement in a class
+;; declaration, and returns the class after being updated.  Mclass dispatches
+;; calls to its subfunctions.
 (define Mclass
   (lambda (stmt state ctx)
     (cond
      ((null? stmt) (ctx-class ctx))
      ((list? stmt) (cond
                     ((eq? 'static-function (car stmt)) (Mclass_staticfuncdecl stmt state ctx))
-                    ((eq? 'static-var (car stmt)) (Mclass_staticvar stmt state ctx))
-                    (else (error "You can only declare static functions and variables in a class."))))
+                    ((eq? 'static-var (car stmt)) (Mclass_staticdeclare stmt state ctx))
+                    (else (error "Invalid statement in class declaration."))))
      (else (ctx-class ctx)))))
 
+;; This function processes a list of statements in a class.  It takes the output
+;; of each Mclass call and puts it into the input of the next, and then finally
+;; returns the completely constructed class.
 (define Mclass_stmtlist
   (lambda (block state ctx)
     (if (null? block)
         (ctx-class ctx)
         (Mclass_stmtlist (cdr block)
                          state
-                         (Mclass (car block) state ctx)))))
+                         (ctx-class-set ctx (Mclass (car block) state ctx))))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Outer Interpreter
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; This function reads a class declaration, and binds it to the name of the
+;; class in the state.  It returns the state after interpreting the declaration.
 (define Mstate_class
   (lambda (stmt state ctx)
     (let* ((name (cadr stmt))
@@ -571,7 +754,9 @@
            (class (Mclass_stmtlist body state (ctx-class-set ctx (class-new parent name)))))
       (state-add state name class))))
 
-
+;; This function interprets at the global scope.  It calls Mstate_class on each
+;; class declaration (and raises an error on anything else).  It returns a state
+;; containing the class names and class data structures.
 (define outer-interpreter
   (lambda (block state ctx)
     (cond
@@ -582,14 +767,15 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Overall interpreter functions
+;; Main interpret function!!!!
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Interpret from the given filename, and return its value.
+;; Interprets a file, given a class to call main on.
 (define interpret
   (lambda (filename class)
-    (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
-                       (state (outer-interpreter (parser filename) (state-new) (ctx-new err err err 'null 'null))))
-                  (call/cc
-                   (lambda (return)
-                     (Mvalue (list 'funcall (list 'dot class 'main)) state (ctx-new return err err class 'null))))))))
+    (return_val
+     (let ((state (outer-interpreter (parser filename) (state-new) (ctx-default))))
+       (call/cc
+        (lambda (return)
+          (Mvalue (list 'funcall (list 'dot class 'main)) state
+                  (ctx-return-set (ctx-default) return))))))))
