@@ -69,6 +69,16 @@ workflow, and it's very useful!
   call to deal with objects and classes. (Follow the denotational semantics
   sketched in lecture.) (*I'm not sure because I don't have complete
   denotational semantics for functions notes.  But, it seems to work.*)
-- [ ] Update the code that interprets an assignment statement so that it looks
+- [x] Update the code that interprets an assignment statement so that it looks
   for the variable in the environment, class and instance variables.
 - [x] Create a new interpret function.
+
+*To-Do: Try/Catch:*
+
+Basically, we're going to need to create a new "throw" continuation, and keep it
+in the function call context.
+
+- [ ] Modify the context to include the throw continuation.  This includes
+  creating an accessor and modifier function, and modifying `ctx-default` to
+  provide a good default value for the throw continuation.
+- [ ] Create Mstate functions for throw, try, catch, finally.
