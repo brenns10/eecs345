@@ -1,6 +1,15 @@
 class A {
   static var x = 1;
   static var b = 2;
+  static function getB() {
+    return b;
+  }
+  static function main() {
+    A.b = B;
+    B.a = A;
+    b.a.b.a.b.a.getB().y = 10;
+    return B.y;
+  }
 }
 class B {
   static var y = 3;
