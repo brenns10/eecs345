@@ -693,13 +693,17 @@
                     throw))))
         ; Upon exiting the continuation, call the code in the catch_body.
         (Mstate catch_body state ctx)))
-    (if (and (not (null? (cdddr try_stmt))) (eq? (cadddr try_stmt) 'finally))
-      (let ((finally_body (cadr (cadddr try_stmt))))
+    (print "About to eval finally")
+    (if (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))
+      (begin
+          (print "Inside the finally, before mstate")
+        (let ((finally_body (cadr (cadddr try_stmt))))
          (Mstate try_body state 
                  (ctx-return-set ctx ; This isn't right yet.  Need to create a lambda to call the return continuation, then Mstate finally_body
-                       (begin
-                         (ctx-return ctx)
-                         (Mstate finally_body state ctx))))))))))
+                       (lambda (v)
+                         (begin 
+                         ((ctx-return ctx) v)
+                         (Mstate finally_body state ctx))))))))))))
             
 
 ;; Return the state after executing any function code.
