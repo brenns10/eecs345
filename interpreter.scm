@@ -288,6 +288,7 @@
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
 (define ctx-throw (lambda (l) (list-ref l 5)))
+(define ctx-throw (lambda (l) (list-ref l 6)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -313,6 +314,10 @@
 (define ctx-throw-set
   (lambda (ctx throw)
     (list-set ctx 5 throw)))
+
+(define ctx-finally-set
+  (lambda (ctx finally)
+    (list-set ctx 6 finally)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -693,17 +698,17 @@
                     throw))))
         ; Upon exiting the continuation, call the code in the catch_body.
         (Mstate catch_body state ctx)))
-    (print "About to eval finally")
+    ;(print "About to eval finally")
     (if (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))
-      (begin
-          (print "Inside the finally, before mstate")
+      ;(begin
+          ;(print "Inside the finally, before mstate")
         (let ((finally_body (cadr (cadddr try_stmt))))
-         (Mstate try_body state 
-                 (ctx-return-set ctx ; This isn't right yet.  Need to create a lambda to call the return continuation, then Mstate finally_body
-                       (lambda (v)
-                         (begin 
-                         ((ctx-return ctx) v)
-                         (Mstate finally_body state ctx))))))))))))
+          (call/cc
+           (lambda (finally)
+             (Mstate try_body state 
+                   (ctx-return-set ctx finally)))); This isn't right yet.  Need to create a lambda to call the return continuation, then Mstate finally_bod
+                           (Mstate finally_body state ctx)
+                           ))))))
             
 
 ;; Return the state after executing any function code.
