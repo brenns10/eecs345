@@ -278,7 +278,8 @@
     (list (lambda (v) (error "You can't return here!"))
           (lambda (v) (error "You can't break here!"))
           (lambda (v) (error "You can't continue here!"))
-          'null 'null)))
+          'null 'null
+          (lambda (v) (error "Unhandled exception!")))))
 
 ;; The functions for accessing items in the context.
 (define ctx-return car)
@@ -286,6 +287,7 @@
 (define ctx-continue caddr)
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
+(define ctx-throw (lambda (l) (list-ref l 5)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -307,6 +309,10 @@
 (define ctx-inst-set
   (lambda (ctx inst)
     (list-set ctx 4 inst)))
+
+(define ctx-throw-set
+  (lambda (ctx throw)
+    (list-set ctx 5 throw)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -671,6 +677,31 @@
       (Mvalue funccall state ctx)
       state)))
 
+;; State for try block
+(define Mstate_try
+  (lambda (try_stmt state ctx)
+    (let ((try_body (cadr try_stmt)))
+    ; Need to check both catch and finally, so use begin to execute both statements
+    (begin
+    (if (and (not (null? (cddr try_stmt))) (eq? (caddr try_stmt) 'catch))
+      (let ((catch_body (caddr (caddr try_stmt))))
+        (call/cc
+         (lambda (throw) ; Create a throw continuation and add it to the context
+           (Mstate try_body state 
+                   (ctx-throw-set
+                    ctx
+                    throw))))
+        ; Upon exiting the continuation, call the code in the catch_body.
+        (Mstate catch_body state ctx)))
+    (if (and (not (null? (cdddr try_stmt))) (eq? (cadddr try_stmt) 'finally))
+      (let ((finally_body (cadr (cadddr try_stmt))))
+         (Mstate try_body state 
+                 (ctx-return-set ctx ; This isn't right yet.  Need to create a lambda to call the return continuation, then Mstate finally_body
+                       (begin
+                         (ctx-return ctx)
+                         (Mstate finally_body state ctx))))))))))
+            
+
 ;; Return the state after executing any function code.
 (define Mstate
   (lambda (stmt state ctx)
@@ -685,9 +716,11 @@
                     ((eq? 'return (car stmt)) (Mstate_return stmt state ctx))
                     ((eq? 'break (car stmt)) ((ctx-break ctx) state))
                     ((eq? 'continue (car stmt)) ((ctx-continue ctx) state))
+                    ((eq? 'throw (car stmt)) ((ctx-throw ctx) state))
                     ((eq? 'while (car stmt)) (Mstate_while stmt state ctx))
                     ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state ctx))
                     ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state ctx))
+                    ((eq? 'try (car stmt)) (Mstate_try stmt state ctx))
                     (else state)))
      (else state))))
 
