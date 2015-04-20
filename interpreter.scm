@@ -251,13 +251,13 @@
     (list 'inst cls '())))
 
 ;; Acessors for instances.
-(define inst-cls cadr)
+(define inst-class cadr)
 (define inst-values caddr)
 
 ;; To modify an instance.
 (define inst-values-set
   (lambda (inst values)
-    (list 'inst (inst-cls) values)))
+    (list 'inst (inst-class) values)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -337,21 +337,41 @@
      ((env-member? (class-methods cls) varname) (env-lookup (class-methods cls) varname))
      (else (error "Function name not found.")))))
 
+;; This takes a variable (could be a number, boolean, class, instance, function,
+;; or something else) and returns its instance/class pair.  Since numbers,
+;; booleans, functions don't have instances or classes, they raise errors (since
+;; you can't use dot on them).
+(define inst-class-of-variable
+  (lambda (var state ctx)
+    (cond
+     ((not (list? var)) (error "Dot operator may only be applied to classes and instances."))
+     ((eq? (car var) 'class) (list 'null var))
+     ((eq? (car var) 'inst) (list var (inst-class var)))
+     (else (error "Dot operator may only be applied to classes and instances.")))))
+
 ;; This function takes a symbol (e.g. a variable, class, function call, or
 ;; keyword) and converts it into an appropriate list pair (class, instance).
 ;; This is where you would implement something like this or super.
 (define dot-inst-class
   (lambda (lhs state ctx)
-    (let ((lookup (variable-lookup lhs state (ctx-class ctx) (ctx-inst ctx))))
-      (cond
-       ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
-       ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent (ctx-class ctx))))
-       ((eq? 'not_found lookup) (error "Not found."))
-       ((eq? 'class (car (unbox lookup))) (list 'null (unbox lookup)))
-       ((eq? 'inst (car (unbox lookup))) (list (unbox lookup) (inst-class (unbox lookup))))
-       ((eq? (car lhs) 'funcall)
-        (let ((result (Mvalue_funccall lhs state ctx)))
-          (list result (inst-class result))))))))
+    (if (list? lhs)
+        ;; The lhs is a list, so there is some sort of parse tree fragment to
+        ;; deal with.
+        (cond
+         ;; Function call!
+         ((eq? (car lhs) 'funcall) (inst-class-of-variable (Mvalue_funccall lhs state ctx)
+                                                           state ctx))
+         ;; Nested dot.  Should fail spectacularly if the variable is not a
+         ;; class or an instance.
+         ((eq? (car lhs) 'dot) (inst-class-of-variable (unbox (lookup-dot-var lhs state ctx))
+                                                       state ctx)))
+        ;; The lhs is an atom, so we're dealing with a keyword or variable
+        (let ((lookup (variable-lookup lhs state (ctx-class ctx) (ctx-inst ctx))))
+          (cond
+           ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
+           ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent (ctx-class ctx))))
+           ((eq? 'not_found lookup) (error "Not found."))
+           (else (inst-class-of-variable (unbox lookup) state ctx)))))))
 
 ;; This helper function looks up the function corresponding to a dot expression.
 ;; First, it resolves the dot by calling dot-inst-class, then, it looks up the
