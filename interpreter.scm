@@ -688,17 +688,8 @@
         ((and (hasCatch? try_stmt) (hasFinally? try_stmt)) (Mstate_CatFin try_stmt try_body state ctx))
         ((hasCatch? try_stmt) (Mstate_catch try_stmt try_body state ctx))
         ((hasFinally? try_stmt) (Mstate_finally try_stmt try_body state ctx))
-        (else '())
+        (else (error "Syntax error that should have been caught by the parser"))
       )))))
-            
-
-(define Mstate_catch
-  (lambda (try_stmt try_body state ctx)
-    (let ((catch_body (caddr (caddr try_stmt))))
-    (call/cc
-     (lambda (throw)
-       (Mstate try_body state (ctx-throw-set ctx throw))))
-       (Mstate catch_body (Mstate try_body state ctx) ctx))))
 
 (define hasCatch?
   (lambda (try_stmt)
@@ -707,6 +698,14 @@
 (define hasFinally?
   (lambda (try_stmt)
     (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))))
+
+(define Mstate_catch
+  (lambda (try_stmt try_body state ctx)
+    (let ((catch_body (caddr (caddr try_stmt))))
+    (call/cc
+     (lambda (throw)
+       (Mstate try_body state (ctx-throw-set ctx throw))))
+       (Mstate catch_body (Mstate try_body state ctx) ctx))))
 
 (define Mstate_finally
   (lambda (try_stmt try_body state ctx)
