@@ -684,25 +684,45 @@
     (let ((try_body (cadr try_stmt)))
     ; Need to check both catch and finally, so use begin to execute both statements
     (begin
-      (if
-        (and (not (null? (caddr try_stmt))) (eq? (car (caddr try_stmt)) 'catch))
-          (let ((catch_body (caddr (caddr try_stmt))))
-            (call/cc
-              (lambda (throw) ; Create a throw continuation and add it to the context
-                (Mstate try_body state 
-                   (ctx-throw-set ctx throw))))
-           ; Upon exiting the continuation, call the code in the catch_body.
-                          (Mstate catch_body state ctx)))
-     (if 
-       (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))
-         (let ((finally_body (cadr (cadddr try_stmt))))
-           (call/cc
-             (lambda (finally)
-               (Mstate try_body state 
-                   (ctx-return-set ctx finally))))
-                           (Mstate finally_body state ctx)))
-      ))))
+      (cond
+        ((and (hasCatch? try_stmt) (hasFinally? try_stmt)) (Mstate_CatFin try_stmt try_body state ctx))
+        ((hasCatch? try_stmt) (Mstate_catch try_stmt try_body state ctx))
+        ((hasFinally? try_stmt) (Mstate_finally try_stmt try_body state ctx))
+        (else '())
+      )))))
             
+
+(define Mstate_catch
+  (lambda (try_stmt try_body state ctx)
+    (let ((catch_body (caddr (caddr try_stmt))))
+    (call/cc
+     (lambda (throw)
+       (Mstate try_body state (ctx-throw-set ctx throw))))
+       (Mstate catch_body (Mstate try_body state ctx) ctx))))
+
+(define hasCatch?
+  (lambda (try_stmt)
+    (and (not (null? (caddr try_stmt))) (eq? (car (caddr try_stmt)) 'catch))))
+
+(define hasFinally?
+  (lambda (try_stmt)
+    (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))))
+
+(define Mstate_finally
+  (lambda (try_stmt try_body state ctx)
+         (let ((finally_body (cadr (cadddr try_stmt))))
+            (Mstate finally_body 
+                   (Mstate try_body state ctx) ctx))))
+
+(define Mstate_CatFin
+  (lambda (try_stmt try_body state ctx)
+    (let ((finally_body (cadr (cadddr try_stmt))))
+      (let ((catch_body (caddr (caddr try_stmt))))
+        (call/cc
+         (lambda (throw)
+           (Mstate finally_body (Mstate try_body state (ctx-throw-set ctx throw)) ctx)))
+        (Mstate finally_body (Mstate catch_body (Mstate try_body state ctx) ctx) ctx)))))
+                 
 
 ;; Return the state after executing any function code.
 (define Mstate
