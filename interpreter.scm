@@ -279,7 +279,8 @@
           (lambda (v) (error "You can't break here!"))
           (lambda (v) (error "You can't continue here!"))
           'null 'null
-          (lambda (v) (error "Unhandled exception!")))))
+          (lambda (v) (error "Unhandled exception!"))
+          (lambda (v) (error "No finally declared")))))
 
 ;; The functions for accessing items in the context.
 (define ctx-return car)
@@ -288,7 +289,6 @@
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
 (define ctx-throw (lambda (l) (list-ref l 5)))
-(define ctx-throw (lambda (l) (list-ref l 6)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -314,10 +314,6 @@
 (define ctx-throw-set
   (lambda (ctx throw)
     (list-set ctx 5 throw)))
-
-(define ctx-finally-set
-  (lambda (ctx finally)
-    (list-set ctx 6 finally)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -688,27 +684,24 @@
     (let ((try_body (cadr try_stmt)))
     ; Need to check both catch and finally, so use begin to execute both statements
     (begin
-    (if (and (not (null? (cddr try_stmt))) (eq? (caddr try_stmt) 'catch))
-      (let ((catch_body (caddr (caddr try_stmt))))
-        (call/cc
-         (lambda (throw) ; Create a throw continuation and add it to the context
-           (Mstate try_body state 
-                   (ctx-throw-set
-                    ctx
-                    throw))))
-        ; Upon exiting the continuation, call the code in the catch_body.
-        (Mstate catch_body state ctx)))
-    ;(print "About to eval finally")
-    (if (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))
-      ;(begin
-          ;(print "Inside the finally, before mstate")
-        (let ((finally_body (cadr (cadddr try_stmt))))
-          (call/cc
-           (lambda (finally)
-             (Mstate try_body state 
-                   (ctx-return-set ctx finally)))); This isn't right yet.  Need to create a lambda to call the return continuation, then Mstate finally_bod
-                           (Mstate finally_body state ctx)
-                           ))))))
+      (if
+        (and (not (null? (caddr try_stmt))) (eq? (car (caddr try_stmt)) 'catch))
+          (let ((catch_body (caddr (caddr try_stmt))))
+            (call/cc
+              (lambda (throw) ; Create a throw continuation and add it to the context
+                (Mstate try_body state 
+                   (ctx-throw-set ctx throw))))
+           ; Upon exiting the continuation, call the code in the catch_body.
+                          (Mstate catch_body state ctx)))
+     (if 
+       (and (not (null? (list-ref try_stmt 3))) (eq? (car (list-ref try_stmt 3)) 'finally))
+         (let ((finally_body (cadr (cadddr try_stmt))))
+           (call/cc
+             (lambda (finally)
+               (Mstate try_body state 
+                   (ctx-return-set ctx finally))))
+                           (Mstate finally_body state ctx)))
+      ))))
             
 
 ;; Return the state after executing any function code.
