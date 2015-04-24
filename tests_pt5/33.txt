@@ -1,0 +1,21 @@
+class A {
+  static var x = 5;
+
+  static function swap(& a, & b) {
+    var temp = a;
+    a = b;
+    b = temp;
+  }
+
+  static function main() {
+    var y = 10;
+    var sum = 0;
+    swap(x, y);
+    sum = x * 100 + y;
+    x = 1;
+    y = 2;
+    swap(A.x, y);
+    sum = sum + x * 10 + y;
+    return sum;
+  }
+}
