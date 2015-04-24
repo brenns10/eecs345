@@ -1,0 +1,16 @@
+class A {
+  static var x = 0;
+
+  static function setSum(limit) {
+    var sum = 0;
+    while ((x = x + 1) < limit) {
+      sum = sum + x;
+    }
+    return sum;
+  }
+
+  static function main () {
+    var j = setSum(10);
+    return (x * 200 + j);
+  }
+}
