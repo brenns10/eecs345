@@ -38,11 +38,3 @@ workflow, and it's very useful!
 
 
 *To-Do: Try/Catch:*
-
-Basically, we're going to need to create a new "throw" continuation, and keep it
-in the function call context.
-
-- [ ] Modify the context to include the throw continuation.  This includes
-  creating an accessor and modifier function, and modifying `ctx-default` to
-  provide a good default value for the throw continuation.
-- [ ] Create Mstate functions for throw, try, catch, finally.
