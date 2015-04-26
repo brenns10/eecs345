@@ -677,6 +677,67 @@
       (Mvalue funccall state ctx)
       state)))
 
+;; Takes a list '(finally [block]) or '() and returns a function that will
+;; evaluate the finally.  The finally function takes a value and returns the
+;; same value, but executes the finally block.
+(define create-finally
+  (lambda (l state ctx)
+    (if (null? l)
+        ;; If no finally, keep going.
+        (lambda (thrown) thrown)
+        ;; If there is a finally, we execute it.
+        (lambda (thrown) (begin (Mstate_block (cadr l) state ctx)
+                                thrown)))))
+
+;; Takes a list '(catch (varname) [block]) or '() and creates a function that
+;; will evaluate the catch.  The catch function takes a value and returns a
+;; state.
+(define create-catch
+  (lambda (l finally continuation ctx)
+    (if (null? l)
+        ;; If there is no catch block, return a lambda that executes the old throw
+        ;; after the finally block.
+        (lambda (thrown)
+          ((ctx-throw ctx) (finally thrown)))
+        ;; If there is a catch block, return a lambda that executes the
+        ;; continuation on the catch and finally block.
+        (lambda (thrown)
+          (continuation (Mstate_stmtlist (caddr l)
+                                         (cons (add-to-layer (new-layer) (caadr l) thrown)
+                                               state)
+                                         ctx))))))
+
+;; Update the context with a new throw continuation, as well as all of the old
+;; return/break/continue's wrapped with the finally.
+(define update-context
+  (lambda (ctx catch finally)
+    (ctx-return-set
+     (ctx-break-set
+      (ctx-continue-set
+       (ctx-throw-set ctx catch)
+       (lambda (v) ((ctx-continue ctx) (finally v))))
+      (lambda (v) ((ctx-break ctx) (finally v))))
+     (lambda (v) ((ctx-return ctx) (finally v))))))
+
+;; Mstate for a try/catch?/finally? block.
+(define try-body cadr)
+(define catch-block caddr)
+(define finally-block cadddr)
+(define Mstate_try
+  (lambda (stmt state ctx)
+    (let ((finally (create-finally (finally-block stmt) state ctx)))
+      (finally
+       (call/cc
+        (lambda (c)
+          (let* ((catch (create-catch (catch-block stmt) finally c ctx))
+                 (newctx (update-context ctx catch finally)))
+            (Mstate_block (try-body stmt) state newctx))))))))
+
+(define Mstate_throw
+  (lambda (stmt state ctx)
+    ((ctx-throw ctx) (Mvalue (cadr stmt) state ctx))))
+
+
 ;; Return the state after executing any function code.
 (define Mstate
   (lambda (stmt state ctx)
@@ -694,6 +755,8 @@
                     ((eq? 'while (car stmt)) (Mstate_while stmt state ctx))
                     ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state ctx))
                     ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state ctx))
+                    ((eq? 'try (car stmt)) (Mstate_try stmt state ctx))
+                    ((eq? 'throw (car stmt)) (Mstate_throw stmt state ctx))
                     (else state)))
      (else state))))
 
