@@ -338,7 +338,9 @@
      ;; Lookup in the state.
      ((state-member? state varname) (state-lookup-box state varname))
      ;; Else, lookup in the class static fields.
-     ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls) varname))
+     ((and (not (eq? 'null cls))
+           (env-member? (class-fields cls) varname))
+      (env-lookup-box (class-fields cls) varname))
      ;; Lookup in the instance, if it exists.
      ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
            (env-member? (list (car (class-instance-names cls)) (inst-values inst)) varname))
@@ -888,7 +890,8 @@
         (ctx-class ctx)
         (Mclass_stmtlist (cdr block)
                          state
-                         (ctx-class-set ctx (Mclass (car block) state ctx))))))
+                         (let ((newclass (Mclass (car block) state ctx)))
+                           (ctx-currclass-set (ctx-class-set ctx newclass) newclass))))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -903,7 +906,8 @@
            (extends (caddr stmt))
            (parent (if (null? extends) 'null (state-lookup state (cadr extends))))
            (body (cadddr stmt))
-           (class (Mclass_stmtlist body state (ctx-class-set ctx (class-new parent name)))))
+           (initial (class-new parent name))
+           (class (Mclass_stmtlist body state (ctx-currclass-set (ctx-class-set ctx initial) initial))))
       (state-add state name class))))
 
 ;; This function interprets at the global scope.  It calls Mstate_class on each
