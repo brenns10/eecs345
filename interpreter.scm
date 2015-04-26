@@ -9,11 +9,25 @@
 ;; Utility Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; Atoms are anything that aren't pairs, or null.
+(define atom?
+  (lambda (x)
+    (and (not (pair? x)) (not (null? x)))))
+
+;; Comparison for numbers, atoms, etc.
+(define ==
+  (lambda (x y)
+    (cond
+     ((and (number? x) (number? y)) (= x y))
+     ((and (atom? x) (atom? y)) (eqv? x y))
+     ((and (list? x) (list? y)) (equal? x y))
+     (else #f))))
+
 ;; There appears not to be a native != function, so we're going to create one,
 ;; specifically for numbers
 (define !=
   (lambda (x y)
-    (not (= x y))))
+    (not (== x y))))
 
 ;; index-of: Return the index of an atom in a list (doesn't work for numbers).
 ;; I implemented this using a YC + CPS, cause why not?
@@ -335,6 +349,9 @@
 (define variable-lookup
   (lambda (varname state cls inst)
     (cond
+     ;; First, if we have "this", just return the instance (in a box, cause we
+     ;; have to).
+     ((eqv? varname 'this) (box inst))
      ;; Lookup in the state.
      ((state-member? state varname) (state-lookup-box state varname))
      ;; Else, lookup in the class static fields.
@@ -437,7 +454,8 @@
 ;; returns the box corresponding to it.  It's pretty awesome.
 (define lookup-var
   (lambda (expr state ctx)
-    (if (list? expr) ;; If the expression is a list, then it must be dotted.
+    (if (list? expr)
+        ;; If the expression is a list, then it must be dotted.
         (lookup-dot-var expr state ctx)
         (variable-lookup expr state (ctx-currclass ctx) (ctx-inst ctx)))))
 
@@ -470,7 +488,7 @@
       ((eq? op '>) >)
       ((eq? op '<=) <=)
       ((eq? op '>=) >=)
-      ((eq? op '==) =)
+      ((eq? op '==) ==)
       ((eq? op '!=) !=)
 
       (else (error "Unrecognized binary operator.")))))
@@ -576,7 +594,10 @@
 ;; environment, or it could be in the class's static or instance environments.
 (define Mvalue_var
   (lambda (expr state ctx)
-    (unbox (variable-lookup expr state (ctx-currclass ctx) (ctx-inst ctx)))))
+    (let ((box (variable-lookup expr state (ctx-currclass ctx) (ctx-inst ctx))))
+      (if (eqv? box 'not_found)
+          (error "Variable not found: " expr)
+          (unbox box)))))
 
 ;; Returns the value of a dot expression.  This can only be a variable access,
 ;; because if it were a function call, it would look like:
