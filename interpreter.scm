@@ -211,7 +211,7 @@
               (env-new)
               (class-methods parent))
           (if (eq? parent 'null)
-              '()
+              '(layer-new) ;; use layer because there will be no boxing
               (class-instance-names parent)))))
 
 ;; Functions for accessing items in a class.
@@ -781,10 +781,23 @@
                     (Mvalue (caddr stmt) state ctx)
                     'undefined))))))
 
+;; This function interprets an instance variable declaration.
+(define Mclass_declare
+  (lambda (stmt state ctx)
+    (let* ((class (ctx-class ctx)))
+      (class-instance-names-set
+       class
+       (layer-add (class-instance-names class)
+                  (cadr stmt)
+                  (if (= 3 (length stmt)) ;; Allow for assignment.
+                      (Mvalue (caddr stmt) state ctx)
+                      'undefined))))))
+
+
 ;; This function interprets a static function declaration.  Compare to
 ;; Mstate_funcdecl.  There was no real way to share the code, and their
 ;; functionality is different enough that I'm not too concerned.
-(define Mclass_staticfuncdecl
+(define Mclass_funcdecl
   (lambda (funcdecl state ctx)
     (let* ((fname (cadr funcdecl))   ; The function name.
            (cls (ctx-class ctx))     ; The class we are building.
@@ -813,8 +826,10 @@
     (cond
      ((null? stmt) (ctx-class ctx))
      ((list? stmt) (cond
-                    ((eq? 'static-function (car stmt)) (Mclass_staticfuncdecl stmt state ctx))
+                    ((eq? 'static-function (car stmt)) (Mclass_funcdecl stmt state ctx))
+                    ((eq? 'function (car stmt)) (Mclass_funcdecl stmt state ctx))
                     ((eq? 'static-var (car stmt)) (Mclass_staticdeclare stmt state ctx))
+                    ((eq? 'var (car stmt)) (Mclass_declare stmt state ctx))
                     (else (error "Invalid statement in class declaration."))))
      (else (ctx-class ctx)))))
 
