@@ -488,7 +488,7 @@
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
       ((eq? 'undefined (Mvalue_var expr state ctx))
-       (error "Use of undefined variable."))
+       (error "Use of undefined variable:" expr))
       (else (Mvalue_var expr state ctx)))))
 
 ;; This function takes a formal parameter list and an actual parameter list, and
@@ -685,8 +685,9 @@
     (if (null? l)
         ;; If no finally, keep going.
         (lambda (thrown) thrown)
-        ;; If there is a finally, we execute it.
-        (lambda (thrown) (begin (Mstate_block (cadr l) state ctx)
+        ;; If there is a finally, we execute it.  We need to cons begin because
+        ;; Mstate_block expects '(begin ....)
+        (lambda (thrown) (begin (Mstate_block (cons 'begin (cadr l)) state ctx)
                                 thrown)))))
 
 ;; Takes a list '(catch (varname) [block]) or '() and creates a function that
@@ -731,7 +732,8 @@
         (lambda (c)
           (let* ((catch (create-catch (catch-block stmt) finally c ctx))
                  (newctx (update-context ctx catch finally)))
-            (Mstate_block (try-body stmt) state newctx))))))))
+            ;; We need to cons 'begin because Mstate_block expects '(begin ...)
+            (Mstate_block (cons 'begin (try-body stmt)) state newctx))))))))
 
 (define Mstate_throw
   (lambda (stmt state ctx)
