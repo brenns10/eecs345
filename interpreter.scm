@@ -5,7 +5,6 @@
 
 (load "classParser.scm")
 
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utility Functions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -96,7 +95,7 @@
     (let ((idx (index-of (car layer) var)))
       (if (= -1 idx)
           'not_found
-          (list-ref (cadr layer) (- (length (cadr layer)) idx 1))))))
+          (list-ref (cadr layer) (- (length (car layer)) idx 1))))))
 (define env-lookup-box layer-lookup)
 
 ;; Lookup a binding in an environment, and return it unboxed.
@@ -284,7 +283,8 @@
           (lambda (v) (error "You can't break here!"))
           (lambda (v) (error "You can't continue here!"))
           'null 'null
-          (lambda (v) (error "Unhandled exception!")))))
+          (lambda (v) (error "Unhandled exception!"))
+          'null)))
 
 ;; The functions for accessing items in the context.
 (define ctx-return car)
@@ -293,6 +293,7 @@
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
 (define ctx-throw (lambda (l) (list-ref l 5)))
+(define ctx-currclass (lambda (l) (list-ref l 6)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -318,6 +319,10 @@
 (define ctx-throw-set
   (lambda (ctx throw)
     (list-set ctx 5 throw)))
+
+(define ctx-currclass-set
+  (lambda (ctx currclass)
+    (list-set ctx 6 currclass)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -364,7 +369,7 @@
 ;; keyword) and converts it into an appropriate list pair (class, instance).
 ;; This is where you would implement something like this or super.
 (define dot-inst-class
-  (lambda (lhs state ctx)
+  (lambda (lhs state cls ctx)
     (if (list? lhs)
         ;; The lhs is a list, so there is some sort of parse tree fragment to
         ;; deal with.
@@ -377,10 +382,10 @@
          ((eq? (car lhs) 'dot) (inst-class-of-variable (unbox (lookup-dot-var lhs state ctx))
                                                        state ctx)))
         ;; The lhs is an atom, so we're dealing with a keyword or variable
-        (let ((lookup (variable-lookup lhs state (ctx-class ctx) (ctx-inst ctx))))
+        (let ((lookup (variable-lookup lhs state cls (ctx-inst ctx))))
           (cond
            ((eq? lhs 'this) (list (ctx-inst ctx) (inst-class (ctx-inst ctx))))
-           ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent (ctx-class ctx))))
+           ((eq? lhs 'super) (list (ctx-inst ctx) (class-parent cls)))
            ((eq? 'not_found lookup) (error "Not found."))
            (else (inst-class-of-variable (unbox lookup) state ctx)))))))
 
@@ -389,7 +394,7 @@
 ;; function using that instance and class (but not the state).
 (define lookup-dot-func
   (lambda (dotexpr state ctx)
-    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state (ctx-class ctx) ctx)))
       (function-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
 
 ;; This universal function lookup takes any expression that resolves to a
@@ -406,15 +411,24 @@
     (if (list? expr)
         ;; If the expression is a list, it must be a dot.  So, we may have a new
         ;; class.
-        (car (dot-inst-class (cadr expr) state ctx))
+        (car (dot-inst-class (cadr expr) state (ctx-class ctx) ctx))
         ;; If there's no dot, the instance should be unchanged.
         (ctx-inst ctx))))
+
+(define lookup-func-class
+  (lambda (expr state alternative ctx)
+    (if (list? expr)
+        ;; If the expression is a list, it must be a dot.  So, we may have a new
+        ;; class.
+        (cadr (dot-inst-class (cadr expr) state (ctx-class ctx) ctx))
+        ;; If there's no dot, the instance should be unchanged.
+        alternative)))
 
 ;; This helper function looks up the variable corresponding to a dot expression,
 ;; by the same process as lookup-dot-var.
 (define lookup-dot-var
   (lambda (dotexpr state ctx)
-    (let ((inst-class (dot-inst-class (cadr dotexpr) state ctx)))
+    (let ((inst-class (dot-inst-class (cadr dotexpr) state (ctx-currclass ctx) ctx)))
       (variable-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
 
 ;; This universal function takes any expression that resolves to a variable and
@@ -423,7 +437,7 @@
   (lambda (expr state ctx)
     (if (list? expr) ;; If the expression is a list, then it must be dotted.
         (lookup-dot-var expr state ctx)
-        (variable-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
+        (variable-lookup expr state (ctx-currclass ctx) (ctx-inst ctx)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -525,8 +539,13 @@
   (lambda (funccall state ctx)
     (let* (;; First, get the closure for this function.
            (closure (lookup-func (cadr funccall) state ctx))
+           ;; Get currclass from the closure
+           (currclass ((cadddr closure) state))
            ;; Get the instance, if there is one.
            (instance (lookup-func-instance (cadr funccall) state ctx))
+           ;; Get the runtime class
+           (class (if (eq? 'null instance) currclass (inst-class instance)))
+           (class (lookup-func-class (cadr funccall) state class ctx))
            ;; Then, call the function to get the new environment.
            (outerenv ((caddr closure) state))
            ;; Then, add on the new layer, constructed form arguments.
@@ -542,18 +561,20 @@
                                                    (ctx-return-set ; Set the return
                                                     (ctx-break-set  ; Set break
                                                      (ctx-inst-set
-                                                      (ctx-continue-set ; Set continue
-                                                       ctx err)
+                                                      (ctx-currclass-set
+                                                       (ctx-continue-set ; Set continue
+                                                        ctx err)
+                                                       currclass)
                                                       instance)
                                                      err)
                                                     return)
-                                                   ((cadddr closure) state))))))))
+                                                   class)))))))
 
 ;; Returns the value of a variable.  It could be in the function's execution
 ;; environment, or it could be in the class's static or instance environments.
 (define Mvalue_var
   (lambda (expr state ctx)
-    (unbox (variable-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
+    (unbox (variable-lookup expr state (ctx-currclass ctx) (ctx-inst ctx)))))
 
 ;; Returns the value of a dot expression.  This can only be a variable access,
 ;; because if it were a function call, it would look like:
@@ -839,9 +860,7 @@
                       (cadddr funcdecl) ; Body
                       (lambda (state)   ; Function to create environment.
                         (let ((class (state-lookup state cname)))
-                          (cons (class-methods class)
-                                (cons (class-fields class)
-                                      (trim-state cname state)))))
+                          (trim-state cname state)))
                       (lambda (state)   ; Function to get class from a state.
                         (state-lookup state cname))))))))
 
@@ -910,5 +929,6 @@
      (let ((state (outer-interpreter (parser filename) (state-new) (ctx-default))))
        (call/cc
         (lambda (return)
+          ;(pretty-print state)
           (Mvalue (list 'funcall (list 'dot class 'main)) state
                   (ctx-return-set (ctx-default) return))))))))
