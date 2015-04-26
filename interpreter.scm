@@ -46,6 +46,11 @@
       ((eq? stmt #f) 'false)
       (else stmt))))
 
+;; Take a list of items and return a list of them, boxed.
+(define box-list
+  (lambda (l)
+    (map box l)))
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer/Environment functions:  '((var_name1 var_name2) (var_value1 var_value2))
@@ -331,8 +336,8 @@
      ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls) varname))
      ;; Lookup in the instance, if it exists.
      ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
-           (env-member? (list (class-instance-names cls) (inst-values)) varname))
-      (env-lookup-box (list (class-instance-names cls) (inst-values)) varname))
+           (env-member? (list (car (class-instance-names cls)) (inst-values)) varname))
+      (env-lookup-box (list (car (class-instance-names cls)) (inst-values)) varname))
      (else 'not_found))))
 
 ;; Lookup a function from the environment, or the class (or instance?).
@@ -543,6 +548,14 @@
 (define Mvalue_dot
   (lambda (expr state ctx)
     (unbox (lookup-dot-var expr state ctx))))
+
+;; Let's create some objects!  -- '(new class-name)
+(define Mvalue_new
+  (lambda (expr state ctx)
+    (let ((class (state-lookup (cadr expr))))
+      (if (not (and (list? class) (eq? (car class) 'class)))
+          (error "Not a class: " (cadr expr))
+          (inst-values-set (inst-new class) (box-list (cadr (class-instance-names))))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
