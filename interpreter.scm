@@ -336,8 +336,8 @@
      ((env-member? (class-fields cls) varname) (env-lookup-box (class-fields cls) varname))
      ;; Lookup in the instance, if it exists.
      ((and (not (eq? 'null inst)) ; don't attempt to lookup if no instance
-           (env-member? (list (car (class-instance-names cls)) (inst-values)) varname))
-      (env-lookup-box (list (car (class-instance-names cls)) (inst-values)) varname))
+           (env-member? (list (car (class-instance-names cls)) (inst-values inst)) varname))
+      (env-lookup-box (list (car (class-instance-names cls)) (inst-values inst)) varname))
      (else 'not_found))))
 
 ;; Lookup a function from the environment, or the class (or instance?).
