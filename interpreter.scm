@@ -278,7 +278,8 @@
     (list (lambda (v) (error "You can't return here!"))
           (lambda (v) (error "You can't break here!"))
           (lambda (v) (error "You can't continue here!"))
-          'null 'null)))
+          'null 'null
+          (lambda (v) (error "Unhandled exception!")))))
 
 ;; The functions for accessing items in the context.
 (define ctx-return car)
@@ -286,6 +287,7 @@
 (define ctx-continue caddr)
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
+(define ctx-throw (lambda (l) (list-ref l 5)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -307,6 +309,10 @@
 (define ctx-inst-set
   (lambda (ctx inst)
     (list-set ctx 4 inst)))
+
+(define ctx-throw-set
+  (lambda (ctx throw)
+    (list-set ctx 5 throw)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -482,7 +488,7 @@
       ((eq? expr 'true) #t)
       ((eq? expr 'false) #f)
       ((eq? 'undefined (Mvalue_var expr state ctx))
-       (error "Use of undefined variable."))
+       (error "Use of undefined variable:" expr))
       (else (Mvalue_var expr state ctx)))))
 
 ;; This function takes a formal parameter list and an actual parameter list, and
@@ -671,6 +677,69 @@
       (Mvalue funccall state ctx)
       state)))
 
+;; Takes a list '(finally [block]) or '() and returns a function that will
+;; evaluate the finally.  The finally function takes a value and returns the
+;; same value, but executes the finally block.
+(define create-finally
+  (lambda (l state ctx)
+    (if (null? l)
+        ;; If no finally, keep going.
+        (lambda (thrown) thrown)
+        ;; If there is a finally, we execute it.  We need to cons begin because
+        ;; Mstate_block expects '(begin ....)
+        (lambda (thrown) (begin (Mstate_block (cons 'begin (cadr l)) state ctx)
+                                thrown)))))
+
+;; Takes a list '(catch (varname) [block]) or '() and creates a function that
+;; will evaluate the catch.  The catch function takes a value and returns a
+;; state.
+(define create-catch
+  (lambda (l finally continuation state ctx)
+    (if (null? l)
+        ;; If there is no catch block, return a lambda that executes the old throw
+        ;; after the finally block.
+        (lambda (thrown)
+          ((ctx-throw ctx) (finally thrown)))
+        ;; If there is a catch block, return a lambda that executes the
+        ;; continuation on the catch and finally block.
+        (lambda (thrown)
+          (continuation (Mstate_stmtlist (caddr l)
+                                         (cons (add-to-layer (layer-new) (caadr l) (box thrown))
+                                               state)
+                                         ctx))))))
+
+;; Update the context with a new throw continuation, as well as all of the old
+;; return/break/continue's wrapped with the finally.
+(define update-context
+  (lambda (ctx catch finally)
+    (ctx-return-set
+     (ctx-break-set
+      (ctx-continue-set
+       (ctx-throw-set ctx catch)
+       (lambda (v) ((ctx-continue ctx) (finally v))))
+      (lambda (v) ((ctx-break ctx) (finally v))))
+     (lambda (v) ((ctx-return ctx) (finally v))))))
+
+;; Mstate for a try/catch?/finally? block.
+(define try-body cadr)
+(define catch-block caddr)
+(define finally-block cadddr)
+(define Mstate_try
+  (lambda (stmt state ctx)
+    (let ((finally (create-finally (finally-block stmt) state ctx)))
+      (finally
+       (call/cc
+        (lambda (c)
+          (let* ((catch (create-catch (catch-block stmt) finally c state ctx))
+                 (newctx (update-context ctx catch finally)))
+            ;; We need to cons 'begin because Mstate_block expects '(begin ...)
+            (Mstate_block (cons 'begin (try-body stmt)) state newctx))))))))
+
+(define Mstate_throw
+  (lambda (stmt state ctx)
+    ((ctx-throw ctx) (Mvalue (cadr stmt) state ctx))))
+
+
 ;; Return the state after executing any function code.
 (define Mstate
   (lambda (stmt state ctx)
@@ -688,6 +757,8 @@
                     ((eq? 'while (car stmt)) (Mstate_while stmt state ctx))
                     ((eq? 'function (car stmt)) (Mstate_funcdecl stmt state ctx))
                     ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state ctx))
+                    ((eq? 'try (car stmt)) (Mstate_try stmt state ctx))
+                    ((eq? 'throw (car stmt)) (Mstate_throw stmt state ctx))
                     (else state)))
      (else state))))
 

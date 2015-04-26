@@ -34,7 +34,4 @@ workflow, and it's very useful!
 
 **PART 4 COMPLETE!**
 
-*Part 5: Objects*
-
-
-*To-Do: Try/Catch:*
+**Part 5: Objects**
