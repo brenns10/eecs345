@@ -216,7 +216,7 @@
               (env-new)
               (class-methods parent))
           (if (eq? parent 'null)
-              '(layer-new) ;; use layer because there will be no boxing
+              (layer-new) ;; use layer because there will be no boxing
               (class-instance-names parent)))))
 
 ;; Functions for accessing items in a class.
@@ -262,7 +262,7 @@
 ;; To modify an instance.
 (define inst-values-set
   (lambda (inst values)
-    (list 'inst (inst-class) values)))
+    (list 'inst (inst-class inst) values)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -457,7 +457,7 @@
     (cond
       ((eq? op '!) not)
       ((eq? op '-) (lambda (x) (- 0 x)))
-      (else (error "Unrecognized unary operator.")))))
+      (else (error "Unrecognized unary operator: " op)))))
 
 ;; Returns the value of an arithmetic expression.
 (define Mvalue_expression
@@ -552,10 +552,10 @@
 ;; Let's create some objects!  -- '(new class-name)
 (define Mvalue_new
   (lambda (expr state ctx)
-    (let ((class (state-lookup (cadr expr))))
+    (let ((class (state-lookup state (cadr expr))))
       (if (not (and (list? class) (eq? (car class) 'class)))
           (error "Not a class: " (cadr expr))
-          (inst-values-set (inst-new class) (box-list (cadr (class-instance-names))))))))
+          (inst-values-set (inst-new class) (box-list (cadr (class-instance-names class))))))))
 
 ;; Return the value of any parse tree fragment!
 (define Mvalue
@@ -565,6 +565,7 @@
                     ((eq? '= (car expr)) (Mvalue_assign expr state ctx))
                     ((eq? 'funcall (car expr)) (Mvalue_funccall expr state ctx))
                     ((eq? 'dot (car expr)) (Mvalue_dot expr state ctx))
+                    ((eq? 'new (car expr)) (Mvalue_new expr state ctx))
                     (else (Mvalue_expression expr state ctx))))
      (else (Mvalue_atom expr state ctx)))))
 
@@ -800,11 +801,11 @@
     (let* ((class (ctx-class ctx)))
       (class-instance-names-set
        class
-       (layer-add (class-instance-names class)
-                  (cadr stmt)
-                  (if (= 3 (length stmt)) ;; Allow for assignment.
-                      (Mvalue (caddr stmt) state ctx)
-                      'undefined))))))
+       (add-to-layer (class-instance-names class)
+                     (cadr stmt)
+                     (if (= 3 (length stmt)) ;; Allow for assignment.
+                         (Mvalue (caddr stmt) state ctx)
+                         'undefined))))))
 
 
 ;; This function interprets a static function declaration.  Compare to
