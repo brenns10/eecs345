@@ -694,7 +694,7 @@
 ;; will evaluate the catch.  The catch function takes a value and returns a
 ;; state.
 (define create-catch
-  (lambda (l finally continuation ctx)
+  (lambda (l finally continuation state ctx)
     (if (null? l)
         ;; If there is no catch block, return a lambda that executes the old throw
         ;; after the finally block.
@@ -704,7 +704,7 @@
         ;; continuation on the catch and finally block.
         (lambda (thrown)
           (continuation (Mstate_stmtlist (caddr l)
-                                         (cons (add-to-layer (new-layer) (caadr l) thrown)
+                                         (cons (add-to-layer (layer-new) (caadr l) (box thrown))
                                                state)
                                          ctx))))))
 
@@ -730,7 +730,7 @@
       (finally
        (call/cc
         (lambda (c)
-          (let* ((catch (create-catch (catch-block stmt) finally c ctx))
+          (let* ((catch (create-catch (catch-block stmt) finally c state ctx))
                  (newctx (update-context ctx catch finally)))
             ;; We need to cons 'begin because Mstate_block expects '(begin ...)
             (Mstate_block (cons 'begin (try-body stmt)) state newctx))))))))
