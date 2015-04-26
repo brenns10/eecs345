@@ -278,7 +278,8 @@
     (list (lambda (v) (error "You can't return here!"))
           (lambda (v) (error "You can't break here!"))
           (lambda (v) (error "You can't continue here!"))
-          'null 'null)))
+          'null 'null
+          (lambda (v) (error "Unhandled exception!")))))
 
 ;; The functions for accessing items in the context.
 (define ctx-return car)
@@ -286,6 +287,7 @@
 (define ctx-continue caddr)
 (define ctx-class cadddr)
 (define ctx-inst (lambda (l) (list-ref l 4)))
+(define ctx-throw (lambda (l) (list-ref l 5)))
 
 ;; The functions for modifying items in the context.
 (define ctx-return-set
@@ -307,6 +309,10 @@
 (define ctx-inst-set
   (lambda (ctx inst)
     (list-set ctx 4 inst)))
+
+(define ctx-throw-set
+  (lambda (ctx throw)
+    (list-set ctx 5 throw)))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
