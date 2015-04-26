@@ -401,6 +401,15 @@
         (lookup-dot-func expr state ctx)
         (function-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
 
+(define lookup-func-instance
+  (lambda (expr state ctx)
+    (if (list? expr)
+        ;; If the expression is a list, it must be a dot.  So, we may have a new
+        ;; class.
+        (car (dot-inst-class (cadr expr) state ctx))
+        ;; If there's no dot, the instance should be unchanged.
+        (ctx-inst ctx))))
+
 ;; This helper function looks up the variable corresponding to a dot expression,
 ;; by the same process as lookup-dot-var.
 (define lookup-dot-var
@@ -516,6 +525,8 @@
   (lambda (funccall state ctx)
     (let* (;; First, get the closure for this function.
            (closure (lookup-func (cadr funccall) state ctx))
+           ;; Get the instance, if there is one.
+           (instance (lookup-func-instance (cadr funccall) state ctx))
            ;; Then, call the function to get the new environment.
            (outerenv ((caddr closure) state))
            ;; Then, add on the new layer, constructed form arguments.
@@ -530,8 +541,10 @@
          (Mstate_stmtlist (cadr closure) newstate (ctx-class-set ; Set the class
                                                    (ctx-return-set ; Set the return
                                                     (ctx-break-set  ; Set break
-                                                     (ctx-continue-set ; Set continue
-                                                      ctx err)
+                                                     (ctx-inst-set
+                                                      (ctx-continue-set ; Set continue
+                                                       ctx err)
+                                                      instance)
                                                      err)
                                                     return)
                                                    ((cadddr closure) state))))))))
