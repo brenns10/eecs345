@@ -1,7 +1,7 @@
 (define interpret
   (lambda (filename)
     (return_val (let* ((err (lambda (v) (error "Can't return/break/continue here.")))
-                       (state (Mstate (parser filename) (state-new) (ctx-new err err err 'null 'null))))
+                       (state (Mstate (parser filename) (state-new) (ctx-default))))
                   (call/cc
                    (lambda (return)
-                     (Mvalue '(funcall main) state (ctx-new return err err 'null 'null))))))))
+                     (Mvalue '(funcall main) state (ctx-return-set (ctx-default) return))))))))
