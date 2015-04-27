@@ -1,4 +1,4 @@
-;; EECS 345 Project Part 4
+;; EECS 345 Project Part 5
 ;; Stephen Brennan (smb196)
 ;; Joe Fennimore (jrf118)
 ;; Kaan Atesoglu (aka43)
