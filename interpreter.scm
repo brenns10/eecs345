@@ -74,7 +74,8 @@
                                                       (map (lambda (arg)
                                                              (unbox (lookup-var arg state ctx))) args))))))
           (lambda (state) (trim-state name state))
-          (lambda (state) 'null))))
+          (lambda (state) 'null)
+          (lambda (v) v))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -776,8 +777,7 @@
     (if (null? l)
         ;; If there is no catch block, return a lambda that executes the old throw
         ;; after the finally block.
-        (lambda (thrown)
-          ((ctx-throw ctx) (finally thrown)))
+        (ctx-throw ctx)
         ;; If there is a catch block, return a lambda that executes the
         ;; continuation on the catch and finally block.
         (lambda (thrown)
@@ -789,11 +789,12 @@
 ;; Update the context with a new throw continuation, as well as all of the old
 ;; return/break/continue's wrapped with the finally.
 (define update-context
-  (lambda (ctx catch finally)
+  (lambda (ctx finally)
     (ctx-return-set
      (ctx-break-set
       (ctx-continue-set
-       (ctx-throw-set ctx catch)
+       (ctx-throw-set ctx
+        (lambda (v) ((ctx-throw ctx) (finally v))))
        (lambda (v) ((ctx-continue ctx) (finally v))))
       (lambda (v) ((ctx-break ctx) (finally v))))
      (lambda (v) ((ctx-return ctx) (finally v))))))
@@ -804,12 +805,13 @@
 (define finally-block cadddr)
 (define Mstate_try
   (lambda (stmt state ctx)
-    (let ((finally (create-finally (finally-block stmt) state ctx)))
+    (let* ((finally (create-finally (finally-block stmt) state ctx))
+           (ctx2 (update-context ctx finally)))
       (finally
        (call/cc
         (lambda (c)
-          (let* ((catch (create-catch (catch-block stmt) finally c state ctx))
-                 (newctx (update-context ctx catch finally)))
+          (let* ((catch (create-catch (catch-block stmt) finally c state ctx2))
+                 (newctx (ctx-throw-set ctx2 catch)))
             ;; We need to cons 'begin because Mstate_block expects '(begin ...)
             (Mstate_block (cons 'begin (try-body stmt)) state newctx))))))))
 
