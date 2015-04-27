@@ -64,6 +64,24 @@
   (lambda (l)
     (map box l)))
 
+;; This creates a function closure for a function implemented in Scheme.  The
+;; function cannot modify the state, but it can return values.
+(define create-builtin-function
+  (lambda (name args function)
+    (list args (list (list 'builtin
+                           (lambda (state ctx)
+                             ((ctx-return ctx) (apply function
+                                                      (map (lambda (arg)
+                                                             (unbox (lookup-var arg state ctx))) args))))))
+          (lambda (state) (trim-state name state))
+          (lambda (state) 'null))))
+
+;; Define a print function for our interpreter!
+(define print-function
+  (create-builtin-function
+   'print '(object)
+   (lambda (object)
+     (display object) (display "\n"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer/Environment functions:  '((var_name1 var_name2) (var_value1 var_value2))
@@ -140,8 +158,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 ;; Return a new, empty state.
-(define state-new
+(define state-empty
   (lambda () '((() ()))))
+
+(define state-new
+  (lambda ()
+    (state-add (state-empty) 'print print-function)))
 
 ;; Add a layer to the state.
 (define add-layer
@@ -830,6 +852,10 @@
                     ((eq? 'funcall (car stmt)) (Mstate_funccall stmt state ctx))
                     ((eq? 'try (car stmt)) (Mstate_try stmt state ctx))
                     ((eq? 'throw (car stmt)) (Mstate_throw stmt state ctx))
+                    ;; Statement that is 'builtin has a lambda we can call
+                    ;; directly after it.  It will always use the return
+                    ;; continuation.
+                    ((eq? 'builtin (car stmt)) ((cadr stmt) state ctx))
                     (else state)))
      (else state))))
 
@@ -954,6 +980,5 @@
      (let ((state (outer-interpreter (parser filename) (state-new) (ctx-default))))
        (call/cc
         (lambda (return)
-          ;(pretty-print state)
           (Mvalue (list 'funcall (list 'dot class 'main)) state
                   (ctx-return-set (ctx-default) return))))))))
