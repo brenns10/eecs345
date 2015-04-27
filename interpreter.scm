@@ -157,7 +157,7 @@
 
 (define state-new
   (lambda ()
-    (state-add (state-empty) 'print print-function)))
+    (state-empty)))
 
 ;; Add a layer to the state.
 (define add-layer
@@ -565,6 +565,7 @@
            ;; Get the instance and class to call the function on.
            (closure (car l))
            (instance (cadr l))
+           (instance ((list-ref closure 4) instance))
            (class (caddr l))
            ;; Get currclass from the closure
            (currclass ((cadddr closure) state))
@@ -742,7 +743,8 @@
                        (lambda (state) ; Function to create the appropriate environment
                          (trim-state fname state))
                        (lambda (state) ; Function to get this function's class
-                         (ctx-class ctx)))))))
+                         (ctx-class ctx))
+                       (lambda (v) v))))))
 
 ;; Get the state for a function call.  This simply delegates that responsibility
 ;; to Mvalue_funccall.  This works because the side effects are maintained with
@@ -878,7 +880,7 @@
 ;; Mstate_funcdecl.  There was no real way to share the code, and their
 ;; functionality is different enough that I'm not too concerned.
 (define Mclass_funcdecl
-  (lambda (funcdecl state ctx)
+  (lambda (funcdecl state static ctx)
     (let* ((fname (cadr funcdecl))   ; The function name.
            (cls (ctx-class ctx))     ; The class we are building.
            (cname (class-name cls))) ; The name of the class we are building.
@@ -894,7 +896,10 @@
                         (let ((class (state-lookup state cname)))
                           (trim-state cname state)))
                       (lambda (state)   ; Function to get class from a state.
-                        (state-lookup state cname))))))))
+                        (state-lookup state cname))
+                      (if static
+                          (lambda (v) 'null)
+                          (lambda (v) v))))))))
 
 ;; This is like the big Mstate function, but it reads each statement in a class
 ;; declaration, and returns the class after being updated.  Mclass dispatches
@@ -904,8 +909,8 @@
     (cond
      ((null? stmt) (ctx-class ctx))
      ((list? stmt) (cond
-                    ((eq? 'static-function (car stmt)) (Mclass_funcdecl stmt state ctx))
-                    ((eq? 'function (car stmt)) (Mclass_funcdecl stmt state ctx))
+                    ((eq? 'static-function (car stmt)) (Mclass_funcdecl stmt state #t ctx))
+                    ((eq? 'function (car stmt)) (Mclass_funcdecl stmt state #f ctx))
                     ((eq? 'static-var (car stmt)) (Mclass_staticdeclare stmt state ctx))
                     ((eq? 'var (car stmt)) (Mclass_declare stmt state ctx))
                     (else (error "Invalid statement in class declaration."))))
