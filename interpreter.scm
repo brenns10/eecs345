@@ -76,12 +76,6 @@
           (lambda (state) (trim-state name state))
           (lambda (state) 'null))))
 
-;; Define a print function for our interpreter!
-(define print-function
-  (create-builtin-function
-   'print '(object)
-   (lambda (object)
-     (display object) (display "\n"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Layer/Environment functions:  '((var_name1 var_name2) (var_value1 var_value2))
@@ -436,34 +430,21 @@
 (define lookup-dot-func
   (lambda (dotexpr state ctx)
     (let ((inst-class (dot-inst-class (cadr dotexpr) state (ctx-class ctx) ctx)))
-      (function-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class)))))
+      (cons (function-lookup (caddr dotexpr) (state-new) (cadr inst-class) (car inst-class))
+            inst-class))))
 
 ;; This universal function lookup takes any expression that resolves to a
-;; function name (either a function name, or a dot expression) and returns the
-;; closure corresponding to it.
+;; function name (either a function name, or a dot expression) and returns a
+;; list:
+;; - closure
+;; - instance
+;; - class
 (define lookup-func
   (lambda (expr state ctx)
     (if (list? expr)  ;; If the expression is a list, then it must be a dot.
         (lookup-dot-func expr state ctx)
-        (function-lookup expr state (ctx-class ctx) (ctx-inst ctx)))))
-
-(define lookup-func-instance
-  (lambda (expr state ctx)
-    (if (list? expr)
-        ;; If the expression is a list, it must be a dot.  So, we may have a new
-        ;; class.
-        (car (dot-inst-class (cadr expr) state (ctx-class ctx) ctx))
-        ;; If there's no dot, the instance should be unchanged.
-        (ctx-inst ctx))))
-
-(define lookup-func-class
-  (lambda (expr state alternative ctx)
-    (if (list? expr)
-        ;; If the expression is a list, it must be a dot.  So, we may have a new
-        ;; class.
-        (cadr (dot-inst-class (cadr expr) state (ctx-class ctx) ctx))
-        ;; If there's no dot, the instance should be unchanged.
-        alternative)))
+        (list (function-lookup expr state (ctx-class ctx) (ctx-inst ctx))
+              (ctx-inst ctx) (ctx-class ctx)))))
 
 ;; This helper function looks up the variable corresponding to a dot expression,
 ;; by the same process as lookup-dot-var.
@@ -580,14 +561,16 @@
 (define Mvalue_funccall
   (lambda (funccall state ctx)
     (let* (;; First, get the closure for this function.
-           (closure (lookup-func (cadr funccall) state ctx))
+           (l (lookup-func (cadr funccall) state ctx))
+           ;; Get the instance and class to call the function on.
+           (closure (car l))
+           (instance (cadr l))
+           (class (caddr l))
            ;; Get currclass from the closure
            (currclass ((cadddr closure) state))
-           ;; Get the instance, if there is one.
-           (instance (lookup-func-instance (cadr funccall) state ctx))
-           ;; Get the runtime class
-           (class (if (eq? 'null instance) currclass (inst-class instance)))
-           (class (lookup-func-class (cadr funccall) state class ctx))
+           ;; If it's static, use the currclass from the closure instead of the
+           ;; runtime class that's probably junk.
+           (class (if (eq? 'null instance) currclass class))
            ;; Then, call the function to get the new environment.
            (outerenv ((caddr closure) state))
            ;; Then, add on the new layer, constructed form arguments.
