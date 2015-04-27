@@ -34,4 +34,4 @@ workflow, and it's very useful!
 
 **PART 4 COMPLETE!**
 
-**Part 5: Objects**
+**Part 5 COMPLETE!**
